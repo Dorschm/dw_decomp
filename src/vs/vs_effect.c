@@ -198,12 +198,12 @@ int32_t VS_multiplyInt16Variable(int32_t p);
 int32_t VS_subtractInt16Variable(int32_t p);
 int32_t VS_addInt16Variable(int32_t p);
 int32_t VS_setInt16Variable(int32_t p);
-int32_t VS_compareGreaterOrEqual(int32_t x);
-int32_t VS_compareGreater(int32_t x);
-int32_t VS_compareLessOrEqual(int32_t x);
 int32_t VS_compareLess(int32_t x);
-int32_t VS_compareNotEqual(int32_t x);
+int32_t VS_compareLessOrEqual(int32_t x);
+int32_t VS_compareGreater(int32_t x);
+int32_t VS_compareGreaterOrEqual(int32_t x);
 int32_t VS_compareEqual(int32_t x);
+int32_t VS_compareNotEqual(int32_t x);
 int16_t VS_calculateAttackHitPosition(SVECTOR *out, Entity *self, Entity *other, int32_t y);
 void VS_renderParallelLines(SVECTOR *a, SVECTOR *b, int16_t n, SVECTOR *from, SVECTOR *to, int32_t *col);
 int32_t VS_interpolateClamped(int32_t lo, int32_t hi, long t, int32_t start, int32_t end);
@@ -320,12 +320,12 @@ static void *vs_effect_functions[] = {
 	VS_interpolateClamped,
 	VS_renderParallelLines,
 	VS_calculateAttackHitPosition,
-	VS_compareEqual,
 	VS_compareNotEqual,
-	VS_compareLess,
-	VS_compareLessOrEqual,
-	VS_compareGreater,
+	VS_compareEqual,
 	VS_compareGreaterOrEqual,
+	VS_compareGreater,
+	VS_compareLessOrEqual,
+	VS_compareLess,
 	VS_setInt16Variable,
 	VS_addInt16Variable,
 	VS_subtractInt16Variable,
@@ -528,12 +528,12 @@ static void *vs_effect_functions[] = {
 	VS_interpolateClamped,
 	VS_renderParallelLines,
 	VS_calculateAttackHitPosition,
-	VS_compareEqual,
 	VS_compareNotEqual,
-	VS_compareLess,
-	VS_compareLessOrEqual,
-	VS_compareGreater,
+	VS_compareEqual,
 	VS_compareGreaterOrEqual,
+	VS_compareGreater,
+	VS_compareLessOrEqual,
+	VS_compareLess,
 	VS_setInt16Variable,
 	VS_addInt16Variable,
 	VS_subtractInt16Variable,
@@ -905,12 +905,12 @@ int32_t (*VS_EFE_VARIABLE_OPERATORS[5][8])() = {
 };
 
 int32_t (*VS_EFE_COMPARISONS[6])(int32_t) = {
-	VS_compareEqual,
 	VS_compareNotEqual,
-	VS_compareLess,
-	VS_compareLessOrEqual,
-	VS_compareGreater,
+	VS_compareEqual,
 	VS_compareGreaterOrEqual,
+	VS_compareGreater,
+	VS_compareLessOrEqual,
+	VS_compareLess,
 };
 
 uint8_t VS_WIREFRAME_BOX_LINES[16] = {
@@ -4862,7 +4862,7 @@ int32_t VS_setInt16Variable(int32_t p)
 	*(int16_t *)p = EFE_SCRIPT_REGISTER;
 }
 
-int32_t VS_compareGreaterOrEqual(int32_t x)
+int32_t VS_compareLess(int32_t x)
 {
 	if (x >= EFE_SCRIPT_REGISTER) {
 		return 0;
@@ -4871,7 +4871,7 @@ int32_t VS_compareGreaterOrEqual(int32_t x)
 	return -1;
 }
 
-int32_t VS_compareGreater(int32_t x)
+int32_t VS_compareLessOrEqual(int32_t x)
 {
 	if (x > EFE_SCRIPT_REGISTER) {
 		return 0;
@@ -4880,7 +4880,7 @@ int32_t VS_compareGreater(int32_t x)
 	return -1;
 }
 
-int32_t VS_compareLessOrEqual(int32_t x)
+int32_t VS_compareGreater(int32_t x)
 {
 	if (x <= EFE_SCRIPT_REGISTER) {
 		return 0;
@@ -4889,7 +4889,7 @@ int32_t VS_compareLessOrEqual(int32_t x)
 	return -1;
 }
 
-int32_t VS_compareLess(int32_t x)
+int32_t VS_compareGreaterOrEqual(int32_t x)
 {
 	if (x < EFE_SCRIPT_REGISTER) {
 		return 0;
@@ -4898,7 +4898,7 @@ int32_t VS_compareLess(int32_t x)
 	return -1;
 }
 
-int32_t VS_compareNotEqual(int32_t x)
+int32_t VS_compareEqual(int32_t x)
 {
 	if (x != EFE_SCRIPT_REGISTER) {
 		return 0;
@@ -4907,7 +4907,7 @@ int32_t VS_compareNotEqual(int32_t x)
 	return -1;
 }
 
-int32_t VS_compareEqual(int32_t x)
+int32_t VS_compareNotEqual(int32_t x)
 {
 	if (x == EFE_SCRIPT_REGISTER) {
 		return 0;
