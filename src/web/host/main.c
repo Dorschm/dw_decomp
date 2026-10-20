@@ -184,6 +184,12 @@ static void audio_init(void)
 {
 	SDL_AudioSpec want, got;
 
+	/* main() only inits video/events; the audio subsystem must be
+	 * brought up here or OpenAudioDevice fails (it does under node,
+	 * which has no Web Audio — the pump still runs for capture) */
+	if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0)
+		emscripten_console_logf("audio: SDL audio init failed (%s)",
+					SDL_GetError());
 	SDL_zero(want);
 	want.freq = 44100;
 	want.format = AUDIO_S16SYS;
