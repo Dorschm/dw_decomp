@@ -32,3 +32,12 @@ WEB_C_SRC := \
 	$(wildcard src/web/psx/*.c)
 
 $(eval $(call unit,WEB,web))
+
+# Authentic libgte lookup tables (rsin_tbl, SQRT, ratan_tbl, rcossin_tbl)
+# extracted from the splat data dump by tools/gen_web_data.py.
+$(GEN_DIR)/libgte_tables.c: tools/gen_web_data.py \
+		asm/us/main/data/psyq/libgte.data.s
+	@mkdir -p $(dir $@)
+	$(PYTHON) tools/gen_web_data.py $@
+
+OBJ += $(BUILD_DIR)/$(GEN_DIR)/libgte_tables.c.o

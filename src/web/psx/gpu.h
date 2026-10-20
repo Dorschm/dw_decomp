@@ -40,6 +40,9 @@ typedef struct GpuStats {
 	uint32_t clipped;	/* put_pixel rejects via draw area */
 	uint32_t loads;		/* gpu_load_image calls */
 	uint32_t load_px;	/* pixels uploaded */
+	uint32_t tex_px;	/* textured pixels written */
+	uint32_t tex_miss;	/* texel==0 skips */
+	uint32_t tex_prim[3];	/* textured prims by depth 4/8/15bpp */
 } GpuStats;
 
 extern GpuStats gpu_stats;

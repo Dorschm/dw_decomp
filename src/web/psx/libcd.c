@@ -187,9 +187,12 @@ int CdControlF(u_char com, u_char *param)
 /* ---------------------------------------------------------------- */
 /* reads                                                             */
 
+long cd_read_calls;
+
 int CdRead(int sectors, u_long *buf, int mode)
 {
 	(void)mode;
+	cd_read_calls++;
 	if (sectors <= 0 || buf == NULL)
 		return 0;
 	read_pending = 1;

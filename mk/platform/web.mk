@@ -11,7 +11,7 @@ WASM := $(BUILD_DIR)/dw.wasm
 LDFLAGS := -O1 -g -sUSE_SDL=2 -sASYNCIFY \
 	-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=64MB \
 	-sEXPORTED_RUNTIME_METHODS=FS,ccall,cwrap \
-	-sEXPORTED_FUNCTIONS=_main,_web_dump_display,_web_dump_vram,_web_gpu_stats \
+	-sEXPORTED_FUNCTIONS=_main,_web_dump_display,_web_dump_vram,_web_gpu_stats,_web_pad_inject,_web_debug_state \
 	-sEMULATE_FUNCTION_POINTER_CASTS=1 \
 	-sNO_EXIT_RUNTIME=1
 
@@ -28,5 +28,14 @@ $(EXE): $(OBJ)
 # Copy the playable artifacts next to web/index.html.
 web: $(EXE)
 	cp -f $(EXE) $(WASM) web/
+
+# Standalone GTE unit test - gte.c only, no PsyQ/game code.
+# Runs under node: node build/us/web/emcc/gte_test.js
+GTE_TEST := $(BUILD_DIR)/gte_test.js
+gte_test: $(GTE_TEST)
+
+$(GTE_TEST): src/web/test/gte_test.c src/web/psx/gte.c src/web/psx/gte.h
+	@mkdir -p $(dir $@)
+	$(CC) -O1 -Isrc -o $@ src/web/test/gte_test.c src/web/psx/gte.c
 
 generate:

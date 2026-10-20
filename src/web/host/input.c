@@ -5,6 +5,7 @@
  */
 
 #include <stdint.h>
+#include <stdio.h>
 
 #include <SDL.h>
 
@@ -26,6 +27,19 @@
 
 static SDL_GameController *controller;
 static uint32_t key_bits;
+static uint32_t injected_bits;
+static int inject_log;
+
+/* Test-harness hook: ORs pad1 bits into the next web_pad_state() result.
+ * Exported so the node/browser harness can drive the game. */
+void web_pad_inject(uint32_t pad1bits)
+{
+	if (pad1bits && inject_log < 8) {
+		inject_log++;
+		fprintf(stderr, "pad: inject %04x\n", pad1bits);
+	}
+	injected_bits |= pad1bits;
+}
 
 static uint32_t key_bit(SDL_Keycode k)
 {
@@ -87,7 +101,12 @@ uint32_t web_pad_state(void)
 	uint32_t b;
 
 	poll_events();
-	b = key_bits;
+	b = key_bits | injected_bits;
+	injected_bits = 0;
+	if (injected_bits && inject_log < 20) {
+		inject_log++;
+		fprintf(stderr, "pad: poll sees %04x\n", b);
+	}
 
 	if (controller != NULL) {
 		if (SDL_GameControllerGetButton(controller,

@@ -236,8 +236,11 @@ static void fill_tri(const Vtx *tv, int gouraud, int textured, int abr,
 							e2 * v[2].v) / area);
 					uint16_t tx = fetch_texel(u, vv, clut);
 					int tr, tg, tb;
-					if (tx == 0)
+					if (tx == 0) {
+						gpu_stats.tex_miss++;
 						continue;
+					}
+					gpu_stats.tex_px++;
 					stp = (tx >> 15) & 1;
 					if (abr && !stp)
 						blend = 0;
@@ -367,6 +370,8 @@ static void poly_common(const uint32_t *w, int nwords, int code)
 		if (dx2 - dx > 1023 || dy2 - dy > 511)
 			return;
 	}
+	if (textured)
+		gpu_stats.tex_prim[tex_depth]++;
 	fill_tri(&v[0], gouraud, textured, abr, raw, clut);
 	if (quad) {
 		Vtx q[3] = {v[1], v[2], v[3]};
@@ -656,31 +661,30 @@ void gpu_exec_packet(const uint32_t *words, int nwords)
 
 void gpu_load_image(const RECT *r, const uint32_t *data)
 {
-	int x, y, n = 0;
+	int x, y, hw = 0;
 	gpu_stats.loads++;
 	gpu_stats.load_px += r->w * r->h;
+	/* Source is a continuous halfword stream packed into 32-bit
+	 * words; row boundaries are not word-aligned (odd w matters). */
 	for (y = 0; y < r->h; y++)
-		for (x = 0; x < r->w; x += 2) {
-			uint32_t w = data[n++];
+		for (x = 0; x < r->w; x++, hw++) {
+			uint32_t w = data[hw >> 1];
 			gpu_vram[(r->y + y) & 0x1ff][(r->x + x) & 0x3ff] =
-				w & 0xffff;
-			if (x + 1 < r->w)
-				gpu_vram[(r->y + y) & 0x1ff]
-					[(r->x + x + 1) & 0x3ff] = w >> 16;
+				(hw & 1) ? (w >> 16) : (w & 0xffff);
 		}
 }
 
 void gpu_store_image(const RECT *r, uint32_t *data)
 {
-	int x, y, n = 0;
+	int x, y, hw = 0;
 	for (y = 0; y < r->h; y++)
-		for (x = 0; x < r->w; x += 2) {
-			uint32_t w = gpu_vram[(r->y + y) & 0x1ff]
+		for (x = 0; x < r->w; x++, hw++) {
+			uint16_t p = gpu_vram[(r->y + y) & 0x1ff]
 					     [(r->x + x) & 0x3ff];
-			if (x + 1 < r->w)
-				w |= gpu_vram[(r->y + y) & 0x1ff]
-					     [(r->x + x + 1) & 0x3ff] << 16;
-			data[n++] = w;
+			if (hw & 1)
+				data[hw >> 1] |= (uint32_t)p << 16;
+			else
+				data[hw >> 1] = p;
 		}
 }
 
@@ -789,6 +793,10 @@ void gpu_stats_dump(void)
 		if (gpu_stats.by_class[i])
 			emscripten_console_logf("gpu:   %s=%u", names[i],
 						gpu_stats.by_class[i]);
+	emscripten_console_logf(
+		"gpu: tex_px=%u tex_miss=%u tex_prim=[%u,%u,%u]",
+		gpu_stats.tex_px, gpu_stats.tex_miss, gpu_stats.tex_prim[0],
+		gpu_stats.tex_prim[1], gpu_stats.tex_prim[2]);
 	emscripten_console_logf(
 		"gpu: ot_walks=%u ot_pkts=%u clipped=%u loads=%u load_px=%u",
 		gpu_stats.ot_walks, gpu_stats.ot_pkts, gpu_stats.clipped,

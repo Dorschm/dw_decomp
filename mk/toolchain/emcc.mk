@@ -77,7 +77,7 @@ $(BUILD_DIR)/src/main/game_menu.c.o: CPPFLAGS += \
 $(BUILD_DIR)/src/main/fish.c.o: CPPFLAGS += \
 	-DtriggerSeadramonCutscene=triggerSeadramonCutscene_1
 $(BUILD_DIR)/src/main/tamer.c.o: CPPFLAGS += \
-	-DgetEntityScreenPos=getEntityScreenPos_r -Dmemcpy=memcpy_v \
+	-DgetEntityScreenPos=getEntityScreenPos_r -Dmemcpy=memcpy_p \
 	-DplaySound=playSound_v
 $(BUILD_DIR)/src/main/script_interp.c.o: CPPFLAGS += \
 	-DsetActiveAnim=setActiveAnim_1 -DscriptSetDigimon=scriptSetDigimon_v \

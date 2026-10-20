@@ -278,13 +278,31 @@ int ClearImage2(RECT *rect, u_char r, u_char g, u_char b)
 	return 0;
 }
 
+extern unsigned long web_vsync_count;
+extern uint8_t PSX_RAM[];
+
+static const char *src_class(const void *p, uintptr_t *off)
+{
+	uintptr_t v = (uintptr_t)p - (uintptr_t)PSX_RAM;
+	*off = v;
+	return v < 0x200000 ? "PSX_RAM" : "native";
+}
+
 int LoadImage(RECT *rect, u_long *p)
 {
 	static int logged;
-	if (logged < 20) {
+	if (web_vsync_count >= 2400 && logged < 300) {
+		uintptr_t off;
+		const char *cl = src_class(p, &off);
+		const uint32_t *w = (const uint32_t *)p;
 		logged++;
-		printf("gpu: LoadImage %d,%d %dx%d data=%p\n", rect->x, rect->y,
-		       rect->w, rect->h, p);
+		printf("gpu: LoadImage %d,%d %dx%d %s+0x%lx w=%08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n",
+		       rect->x, rect->y, rect->w, rect->h, cl,
+		       (unsigned long)off, (unsigned long)w[0],
+		       (unsigned long)w[1], (unsigned long)w[2],
+		       (unsigned long)w[3], (unsigned long)w[4],
+		       (unsigned long)w[5], (unsigned long)w[6],
+		       (unsigned long)w[7]);
 	}
 	gpu_load_image(rect, (const uint32_t *)p);
 	return 0;
@@ -292,12 +310,21 @@ int LoadImage(RECT *rect, u_long *p)
 
 int StoreImage(RECT *rect, u_long *p)
 {
+	if (web_vsync_count >= 2400) {
+		uintptr_t off;
+		printf("gpu: StoreImage %d,%d %dx%d %s+0x%lx\n", rect->x,
+		       rect->y, rect->w, rect->h, src_class(p, &off),
+		       (unsigned long)off);
+	}
 	gpu_store_image(rect, (uint32_t *)p);
 	return 0;
 }
 
 int MoveImage(RECT *rect, int x, int y)
 {
+	if (web_vsync_count >= 2400)
+		printf("gpu: MoveImage %d,%d %dx%d -> %d,%d\n", rect->x,
+		       rect->y, rect->w, rect->h, x, y);
 	gpu_move_image(rect, x, y);
 	return 0;
 }
@@ -517,14 +544,39 @@ void SetDrawEnv(DR_ENV *dr_env, DRAWENV *env)
 
 /* ---- TIM -------------------------------------------------------------- */
 
+/* glabel OpenTIM / ReadTIM + get_tim_addr (libgpu.s):
+ * OpenTIM stores the TIM pointer in a static; ReadTIM parses it and
+ * advances tmd_tim past the TIM (block bnum is a byte count; the CLUT
+ * block is skipped by (bnum & ~3) bytes exactly as the asm does). */
+static u_long *tmd_tim;
+
 int OpenTIM(u_long *addr)
 {
-	(void)addr;
+	tmd_tim = addr;
 	return 0;
 }
 
 TIM_IMAGE *ReadTIM(TIM_IMAGE *timimg)
 {
+	u_long *p = tmd_tim;
+	int a0 = 0;
+
+	if (*p != 0x10)
+		return 0;
+	p++;
+	timimg->mode = *p++;
+	if (timimg->mode & 8) {
+		timimg->crect = (RECT *)(p + 1);
+		timimg->caddr = p + 3;
+		a0 = *p >> 2;	/* clut block size in words */
+		p = (u_long *)((char *)p + (a0 << 2));
+	} else {
+		timimg->crect = 0;
+		timimg->caddr = 0;
+	}
+	timimg->prect = (RECT *)(p + 1);
+	timimg->paddr = p + 3;
+	tmd_tim += a0 + (*p >> 2) + 2;
 	return timimg;
 }
 

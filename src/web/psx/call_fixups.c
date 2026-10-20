@@ -26,6 +26,7 @@
 
 #include <stdint.h>
 
+#include <emscripten/console.h>
 #include <web/host/log.h>
 
 /* ---- helpers: declarations of the real definitions ---- */
@@ -308,6 +309,15 @@ void memcpy_v(int32_t dst, int32_t src, int32_t size)
 	(void)memcpy(dst, src, size);
 }
 
+/* tamer.c declares memcpy with pointer args; give that TU its own
+ * pointer-typed rename so it doesn't collide with memcpy_v. */
+void *memcpy(int32_t dst, int32_t src, int32_t n);
+
+void memcpy_p(uint8_t *dst, uint8_t *src, uint32_t size)
+{
+	(void)memcpy((int32_t)dst, (int32_t)src, (int32_t)size);
+}
+
 /* ---- libmcrd: main.c declares these returning long ---- */
 
 long MemCardInit(long flg)
@@ -319,4 +329,56 @@ long MemCardInit(long flg)
 long MemCardStart(void)
 {
 	return web_unimplemented("MemCardStart");
+}
+
+/* ---- debug state probe for the input harness ---- */
+
+extern int32_t CURRENT_MENU, TARGET_MENU, FIRST_SCREEN_PRESSED_START;
+extern int32_t POLLED_INPUT, CHANGED_INPUT;
+
+extern long gs_drawot_calls, gs_swapbuf_calls, cd_read_calls, gsort_obj_calls;
+extern long tmd_prim_counts[32];
+extern unsigned short SCRIPT_STATE_2;
+extern unsigned char NAMING_BOX_FLAG, NAMING_CURRENT_LETTER;
+extern unsigned short NAMING_SELECTOR;
+extern int8_t MAIN_STATE, CURRENT_SCREEN;
+
+void web_debug_state(void)
+{
+	emscripten_console_logf(
+		"state: menu cur=%ld tgt=%ld first_start=%ld pad=0x%lx chg=0x%lx "
+		"drawot=%ld swap=%ld cd=%ld sortobj=%ld ss2=%x name=%x,%x,%x "
+		"main=%d scr=%d",
+		(long)CURRENT_MENU, (long)TARGET_MENU,
+		(long)FIRST_SCREEN_PRESSED_START, (unsigned long)POLLED_INPUT,
+		(unsigned long)CHANGED_INPUT,
+		gs_drawot_calls, gs_swapbuf_calls, cd_read_calls, gsort_obj_calls,
+		(unsigned)SCRIPT_STATE_2, (unsigned)NAMING_BOX_FLAG,
+		(unsigned)NAMING_CURRENT_LETTER, (unsigned)NAMING_SELECTOR,
+		(int)MAIN_STATE, (int)CURRENT_SCREEN);
+	{
+		static const char *nm[8] = {
+			"F3", "NF3", 0, 0, "TF3", "TNF3", 0, 0 };
+		static const char *nm2[8] = {
+			"F4", "NF4", 0, 0, "TF4", "TNF4", 0, 0 };
+		int i;
+		for (i = 0; i < 32; i++) {
+			const char *n = i < 8 ? nm[i] :
+					(i - 8 < 8 ? nm2[i - 8] : 0);
+			if (!n) {
+				if (tmd_prim_counts[i])
+					emscripten_console_logf(
+						"tmd: code%x=%ld", i,
+						tmd_prim_counts[i]);
+				continue;
+			}
+			if (tmd_prim_counts[i])
+				emscripten_console_logf("tmd: %s=%ld", n,
+							tmd_prim_counts[i]);
+		}
+		for (i = 16; i < 32; i++)
+			if (tmd_prim_counts[i])
+				emscripten_console_logf("tmd: grp%x=%ld", i,
+							tmd_prim_counts[i]);
+	}
 }
