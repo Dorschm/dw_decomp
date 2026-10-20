@@ -14,6 +14,8 @@
 #include <unistd.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 
 extern void *sbrk(intptr_t increment);
 
@@ -41,6 +43,150 @@ static SDL_Texture *texture;
 static int tex_w = 640, tex_h = 480;
 static uint8_t *frame_buf;
 static int frame_cap;
+
+/* ---------------- audio ---------------------------------------------
+ * PsyQ runs the libsnd sequencer from a root-counter interrupt at
+ * VBLANK_MINUS Hz (the game selects SS_TICK240 = 240 Hz). Here the
+ * pump is driven once per 60 Hz VSync tick and interleaves four
+ * sequencer ticks with SPU rendering at exact 183.75-sample spacing
+ * (735 = 44100/60 = 4 * 183.75; the fractional sample is accumulated
+ * so long-run timing is exact).
+ */
+extern void spu_render(int16_t *out, int frames);
+extern void spu_reset(void);
+extern void SsSeqCalledTbyT(void);
+extern long web_seq_tick_rate(void);
+
+static SDL_AudioDeviceID audio_dev;
+static int audio_ok;
+static int16_t audio_frame[735 * 2];
+
+/* headless WAV capture */
+static char wav_path[256];
+static long wav_target, wav_done;
+static int16_t *wav_buf;
+
+static void wav_finish(void)
+{
+	FILE *f;
+	long data = wav_done * 4;
+	unsigned char hdr[44] = {
+		'R','I','F','F', 0,0,0,0, 'W','A','V','E',
+		'f','m','t',' ', 16,0,0,0, 1,0, 2,0,
+		0x44,0xAC,0,0, 0x10,0xB1,2,0, 4,0, 16,0,
+		'd','a','t','a', 0,0,0,0
+	};
+	long riff = data + 36;
+	hdr[4]=riff; hdr[5]=riff>>8; hdr[6]=riff>>16; hdr[7]=riff>>24;
+	hdr[40]=data; hdr[41]=data>>8; hdr[42]=data>>16; hdr[43]=data>>24;
+	f = fopen(wav_path, "wb");
+	if (f) {
+		fwrite(hdr, 1, 44, f);
+		fwrite(wav_buf, 4, wav_done, f);
+		fclose(f);
+		emscripten_console_logf("audio: captured %ld samples -> %s",
+					wav_done, wav_path);
+	} else {
+		emscripten_console_logf("audio: cannot write %s", wav_path);
+	}
+	free(wav_buf);
+	wav_buf = NULL;
+	wav_path[0] = 0;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void web_audio_capture(const char *path, int seconds)
+{
+	if (wav_buf)
+		wav_finish();
+	strncpy(wav_path, path, sizeof(wav_path) - 1);
+	wav_path[sizeof(wav_path) - 1] = 0;
+	wav_target = 44100L * seconds;
+	wav_done = 0;
+	wav_buf = malloc(wav_target * 4);
+	if (wav_buf == NULL)
+		emscripten_console_log("audio: capture alloc failed");
+	else
+		emscripten_console_logf("audio: capturing %ds -> %s",
+					seconds, path);
+}
+
+void web_audio_pump(void)
+{
+	static double tick_pos;
+	int rate = (int)web_seq_tick_rate();
+	int ntick, k;
+	int done = 0;
+	double step;
+	const int total = 735;
+
+	if (rate <= 0)
+		rate = 240;
+	ntick = rate / 60;
+	if (ntick < 1)
+		ntick = 1;
+	step = 44100.0 / (double)rate;
+
+	for (k = 0; k < ntick; k++) {
+		int next;
+		tick_pos += step;
+		next = (int)(tick_pos + 0.5);
+		if (next > total)
+			next = total;
+		if (next > done) {
+			spu_render(audio_frame + done * 2, next - done);
+			done = next;
+		}
+		SsSeqCalledTbyT();
+	}
+	if (done < total)
+		spu_render(audio_frame + done * 2, total - done);
+	tick_pos -= total;
+
+	if (audio_ok) {
+		if (SDL_GetQueuedAudioSize(audio_dev) <= 4u * sizeof(audio_frame))
+			SDL_QueueAudio(audio_dev, audio_frame,
+				       sizeof(audio_frame));
+	}
+	if (wav_buf && wav_path[0]) {
+		long n = wav_target - wav_done;
+		if (n > total)
+			n = total;
+		memcpy(wav_buf + wav_done * 2, audio_frame, n * 4);
+		wav_done += n;
+		if (wav_done >= wav_target)
+			wav_finish();
+	}
+}
+
+static void audio_init(void)
+{
+	SDL_AudioSpec want, got;
+
+	SDL_zero(want);
+	want.freq = 44100;
+	want.format = AUDIO_S16SYS;
+	want.channels = 2;
+	want.samples = 1024;
+	audio_dev = SDL_OpenAudioDevice(NULL, 0, &want, &got, 0);
+	if (audio_dev == 0) {
+		emscripten_console_logf("audio: OpenAudioDevice failed (%s); "
+					"pump still runs for capture",
+					SDL_GetError());
+		return;
+	}
+	audio_ok = 1;
+	SDL_PauseAudioDevice(audio_dev, 0);
+	emscripten_console_logf("audio: device up %dHz fmt=%d ch=%d",
+				got.freq, got.format, got.channels);
+}
+
+EMSCRIPTEN_KEEPALIVE
+void web_audio_resume(void)
+{
+	if (audio_ok)
+		SDL_PauseAudioDevice(audio_dev, 0);
+}
 
 void web_present(void)
 {
@@ -160,6 +306,8 @@ int main(void)
 	if (renderer == NULL)
 		emscripten_console_logf("web: no renderer (%s); running "
 					"headless", SDL_GetError());
+	audio_init();
+	spu_reset();
 	emscripten_console_log("web: SDL up, calling dw_main()");
 	return dw_main();
 }

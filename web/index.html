@@ -16,6 +16,7 @@
 <label for="disc">Select your Digimon World (USA) .bin</label>
 <canvas id="canvas" width="320" height="240"></canvas>
 <div id="status">waiting for disc...</div>
+<div id="audioHint">click the canvas or file picker to enable audio</div>
 <script>
 var statusEl = document.getElementById('status');
 
@@ -75,6 +76,21 @@ document.getElementById('disc').addEventListener('change', function (e) {
     },
   });
 });
+
+/* Audio autoplay: resume the SDL audio device on the first user
+ * gesture (file pick or canvas click). */
+var audioUnlocked = false;
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  if (Module.ccall) {
+    try { Module.ccall('web_audio_resume', null, [], []); } catch (e) {}
+  }
+  var el = document.getElementById('audioHint');
+  if (el) el.textContent = '';
+}
+document.getElementById('disc').addEventListener('click', unlockAudio);
+document.getElementById('canvas').addEventListener('click', unlockAudio);
 
 var m = location.search.match(/[?&]disc=([^&]+)/);
 if (m) {

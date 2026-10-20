@@ -22,6 +22,7 @@ extern void emscripten_console_logf(const char *fmt, ...);
 extern uint32_t web_pad_state(void);
 
 extern void web_present(void);
+extern void web_audio_pump(void);
 
 unsigned int web_vsync_count;
 
@@ -50,6 +51,7 @@ int VSync(int mode)
 			emscripten_console_logf("vsync: %u frames",
 						web_vsync_count);
 		web_present();
+		web_audio_pump();
 		if (vsync_cb != NULL)
 			vsync_cb();
 	}
