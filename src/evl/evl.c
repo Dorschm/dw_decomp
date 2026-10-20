@@ -25,7 +25,7 @@
 
 #include "common.h"
 
-#define EVL_MMD_BUFFER	0x80020000
+#define EVL_MMD_BUFFER	((int32_t)(intptr_t)PSX_PTR(0x80020000))
 
 typedef struct {
 	int16_t timer;

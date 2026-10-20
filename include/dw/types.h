@@ -25,4 +25,15 @@ typedef unsigned int uintptr_t;
 
 #endif
 
+#ifdef PLATFORM_WEB
+/* Emulated 2 MiB PS1 main RAM (defined in src/web/psx/data_shim.c).
+ * All hard-coded 0x80xxxxxx address literals resolve into it so that
+ * the retail overlay buffers, scratch areas and ordering tables share
+ * one address space exactly like on hardware. */
+extern unsigned char PSX_RAM[0x200000];
+#define PSX_PTR(addr) ((void *)(PSX_RAM + ((addr) & 0x1FFFFF)))
+#else
+#define PSX_PTR(addr) ((void *)(addr))
+#endif
+
 #endif

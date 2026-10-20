@@ -14,28 +14,85 @@
 <input type="file" id="disc" accept=".bin">
 <label for="disc">Select your Digimon World (USA) .bin</label>
 <canvas id="canvas" width="640" height="480"></canvas>
-<div id="status">loading...</div>
+<div id="status">waiting for disc...</div>
 <script>
-var Module = {
+var statusEl = document.getElementById('status');
+
+/* Disc source abstraction: either a File from the picker (read via
+ * Blob.slice, no full-file memory copy) or a fully fetched ArrayBuffer
+ * from ?disc=<url>. The game waits on Module.disc.ready (CdInit blocks
+ * inside Asyncify until a disc is attached). */
+var discSource = null; /* {readRaw(off, len) -> Promise<Uint8Array>} */
+var discResolve;
+var discReady = new Promise(function (r) { discResolve = r; });
+
+function attachSource(src) {
+  if (discSource) return;
+  discSource = src;
+  discResolve(src);
+}
+
+Module = {
   canvas: document.getElementById('canvas'),
   print: function (s) {
-    var el = document.getElementById('status');
-    el.textContent += s + "\n";
+    statusEl.textContent += s + "\n";
     console.log(s);
   },
   printErr: function (s) { console.warn(s); },
+  disc: {
+    ready: discReady,
+    /* readRaw(lba, nsec) -> Promise<Uint8Array> of nsec*2352 bytes */
+    readRaw: function (lba, nsec) {
+      var off = lba * 2352, len = nsec * 2352;
+      return discSource.readRaw(off, len);
+    },
+    /* readUser(lba, nsec) -> Promise<Uint8Array> of nsec*2048 bytes */
+    readUser: function (lba, nsec) {
+      return Module.disc.readRaw(lba, nsec).then(function (raw) {
+        var out = new Uint8Array(nsec * 2048);
+        for (var i = 0; i < nsec; ++i) {
+          var base = i * 2352;
+          var mode = raw[base + 15];
+          var userOff = base + (mode === 2 ? 24 : 16);
+          out.set(raw.subarray(userOff, userOff + 2048), i * 2048);
+        }
+        return out;
+      });
+    },
+  },
 };
 
 document.getElementById('disc').addEventListener('change', function (e) {
   var f = e.target.files[0];
   if (!f) return;
-  f.arrayBuffer().then(function (buf) {
-    Module.FS.mkdir('/disc');
-    Module.FS.writeFile('/disc/dw.bin', new Uint8Array(buf));
-    document.getElementById('status').textContent =
-      'disc loaded: ' + f.size + ' bytes -> /disc/dw.bin\n';
+  statusEl.textContent = 'disc attached: ' + f.name +
+    ' (' + f.size + ' bytes)\n';
+  attachSource({
+    readRaw: function (off, len) {
+      return f.slice(off, off + len).arrayBuffer()
+        .then(function (b) { return new Uint8Array(b); });
+    },
   });
 });
+
+var m = location.search.match(/[?&]disc=([^&]+)/);
+if (m) {
+  statusEl.textContent = 'fetching disc ' + decodeURIComponent(m[1]) + ' ...\n';
+  fetch(decodeURIComponent(m[1])).then(function (r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.arrayBuffer();
+  }).then(function (buf) {
+    var u8 = new Uint8Array(buf);
+    statusEl.textContent = 'disc fetched: ' + u8.length + ' bytes\n';
+    attachSource({
+      readRaw: function (off, len) {
+        return Promise.resolve(u8.subarray(off, off + len));
+      },
+    });
+  }).catch(function (err) {
+    statusEl.textContent = 'disc fetch failed: ' + err + '\n';
+  });
+}
 </script>
 <script src="dw.js"></script>
 </body>

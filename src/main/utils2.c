@@ -21,7 +21,7 @@
 #include <dw/version.h>
 #include <text/main/utils2.h>
 
-#define shop_START		((char *)0x80080800)
+#define shop_START		((char *)PSX_PTR(0x80080800))
 
 void reinitializeAfterTournament(void);
 void thunkReinitializeAfterTournament(void);
@@ -69,6 +69,26 @@ int32_t STD_tournamentMain(uint8_t *arg);
 extern uint8_t ITEM_CLUT_DATA[];
 extern uint8_t MAP_LAYER_ENABLED;
 extern RGB8 TEXT_COLORS[];
+#ifdef PLATFORM_WEB
+/* On web the overlay base symbols resolve into the emulated PSX_RAM at
+ * the retail load addresses from config/us/overlay.ld, so data loaded by
+ * loadDynamicLibrary lands where the hard-coded buffer pointers expect. */
+#define btl_START	((char *)PSX_PTR(0x80052AE0))
+#define dget_START	((char *)PSX_PTR(0x80080800))
+#define doo2_START	((char *)PSX_PTR(0x80070000))
+#define dooa_START	((char *)PSX_PTR(0x80080000))
+#define eab_START	((char *)PSX_PTR(0x80060000))
+#define endi_START	((char *)PSX_PTR(0x80060000))
+#define evl_START	((char *)PSX_PTR(0x80060000))
+#define fish_START	((char *)PSX_PTR(0x80070000))
+#define kar_START	((char *)PSX_PTR(0x80053800))
+#define mov_START	((char *)PSX_PTR(0x80010000))
+#define murd_START	((char *)PSX_PTR(0x8007C000))
+#define std_START	((char *)PSX_PTR(0x80052AE0))
+#define trn_START	((char *)PSX_PTR(0x80088800))
+#define trn2_START	((char *)PSX_PTR(0x80088800))
+#define vs_START	((char *)PSX_PTR(0x80052AE0))
+#else
 extern char btl_START[];
 extern char dget_START[];
 extern char doo2_START[];
@@ -84,6 +104,7 @@ extern char std_START[];
 extern char trn_START[];
 extern char trn2_START[];
 extern char vs_START[];
+#endif
 
 // clang-format off
 void *REL_BIN_OFFSETS[16] = {

@@ -1,36 +1,16 @@
 /*
  * Definitions for symbols the psx build gets from linker scripts or from
- * splat-generated data .s files under asm/us/<seg>. On web there are no
- * overlay sections, so the *_START overlay base markers (normally the
- * load address of each *_REL.BIN) become plain heap buffers sized to the
- * largest retail overlay (MOV_REL.BIN = 472104 bytes -> round to 512 KiB).
- * readFile() copies overlay data into these; the linked-in C copies of
- * the overlay code are what actually executes.
+ * splat-generated data .s files under asm/us/<seg>.
+ *
+ * PSX_RAM is the emulated 2 MiB PS1 main memory. Every hard-coded
+ * 0x80xxxxxx address literal in the game resolves into it via PSX_PTR
+ * (include/dw/types.h), and the *_START overlay bases in utils2.c point
+ * at the retail load addresses inside it.
  */
 
 #include <stdint.h>
 
-#define OVERLAY_AREA_SIZE 0x80000 /* 512 KiB >= largest *_REL.BIN */
-
-#define DEF_OVERLAY(name) \
-	__attribute__((aligned(16))) char name##_START[OVERLAY_AREA_SIZE]
-
-DEF_OVERLAY(btl);
-DEF_OVERLAY(std);
-DEF_OVERLAY(fish);
-DEF_OVERLAY(evl);
-DEF_OVERLAY(kar);
-DEF_OVERLAY(vs);
-DEF_OVERLAY(mov);
-DEF_OVERLAY(doo2);
-DEF_OVERLAY(dooa);
-DEF_OVERLAY(trn);
-DEF_OVERLAY(shop);
-DEF_OVERLAY(dget);
-DEF_OVERLAY(trn2);
-DEF_OVERLAY(murd);
-DEF_OVERLAY(endi);
-DEF_OVERLAY(eab);
+__attribute__((aligned(16))) unsigned char PSX_RAM[0x200000];
 
 /*
  * Linker-script symbols the game reads in initializeHeap()

@@ -11,6 +11,7 @@ WASM := $(BUILD_DIR)/dw.wasm
 LDFLAGS := -O1 -g -sUSE_SDL=2 -sASYNCIFY \
 	-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=64MB \
 	-sEXPORTED_RUNTIME_METHODS=FS,ccall,cwrap \
+	-sEMULATE_FUNCTION_POINTER_CASTS=1 \
 	-sNO_EXIT_RUNTIME=1
 
 # The emsdk image's python3 lacks PyYAML; tools/web_python.sh installs it

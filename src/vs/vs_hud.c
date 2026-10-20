@@ -17,7 +17,7 @@
 
 #include "common.h"
 
-#define VS_TMD_BUFFER	((uint8_t *)0x80038000)
+#define VS_TMD_BUFFER	((uint8_t *)PSX_PTR(0x80038000))
 
 extern int16_t BTL_FINISHER_CHARGEUP_POS[2];
 extern int8_t GAME_STATE;

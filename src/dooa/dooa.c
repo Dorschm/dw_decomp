@@ -30,11 +30,11 @@
 #include <dw/version.h>
 #include <dw/world_object.h>
 
-#define DOOA_MMD_BUFFER		0x80020000
-#define DOOA_SHARD_BUFFER	0x80044800
+#define DOOA_MMD_BUFFER		((int32_t)(intptr_t)PSX_PTR(0x80020000))
+#define DOOA_SHARD_BUFFER	((int32_t)(intptr_t)PSX_PTR(0x80044800))
 #define DOOA_SHARD_BUFFER_SIZE	0x5dc0
-#define DOOA_ORDERING_TABLE_0	((GsOT_TAG *)0x8008c000)
-#define DOOA_ORDERING_TABLE_1	((GsOT_TAG *)0x8008e000)
+#define DOOA_ORDERING_TABLE_0	((GsOT_TAG *)PSX_PTR(0x8008c000))
+#define DOOA_ORDERING_TABLE_1	((GsOT_TAG *)PSX_PTR(0x8008e000))
 
 typedef struct {
 	VECTOR offset;

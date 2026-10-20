@@ -20,11 +20,11 @@
 #include <dw/version.h>
 #include <dw/world_object.h>
 
-#define BTL_FINISHER_TIM	((char *)0x80052ae0)
-#define BTL_FINISHER_MODEL	((char *)0x80053800)
-#define BTL_CONFUSION_MODEL	((char *)0x80054838)
-#define BTL_STUN_MODEL		((char *)0x80054d00)
-#define BTL_BUFF_MODEL		((TMDModel *)0x80055328)
+#define BTL_FINISHER_TIM	((char *)PSX_PTR(0x80052ae0))
+#define BTL_FINISHER_MODEL	((char *)PSX_PTR(0x80053800))
+#define BTL_CONFUSION_MODEL	((char *)PSX_PTR(0x80054838))
+#define BTL_STUN_MODEL		((char *)PSX_PTR(0x80054d00))
+#define BTL_BUFF_MODEL		((TMDModel *)PSX_PTR(0x80055328))
 
 #define NUM_CONCAVE_SCREENS	18
 
