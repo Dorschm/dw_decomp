@@ -15,6 +15,10 @@
 <input type="file" id="disc" accept=".bin">
 <label for="disc">Select your Digimon World (USA) .bin</label>
 <canvas id="canvas" width="320" height="240"></canvas>
+<div>
+  <button id="exportSave">Export save</button>
+  <label>Import save <input type="file" id="importSave" accept=".mcr"></label>
+</div>
 <div id="status">waiting for disc...</div>
 <div id="audioHint">click the canvas or file picker to enable audio</div>
 <script>
@@ -36,6 +40,19 @@ function attachSource(src) {
 
 Module = {
   canvas: document.getElementById('canvas'),
+  /* Mount IDBFS at /memcard and pull persisted card images before
+   * dw_main starts (run dependency delays main until syncfs(true)
+   * finishes). Skipped headless (no IndexedDB). */
+  preRun: function () {
+    if (typeof indexedDB === 'undefined') return;
+    addRunDependency('memcard');
+    try { FS.mkdir('/memcard'); } catch (e) {}
+    FS.mount(IDBFS, {}, '/memcard');
+    FS.syncfs(true, function (err) {
+      if (err) console.warn('memcard syncfs(load): ' + err);
+      removeRunDependency('memcard');
+    });
+  },
   print: function (s) {
     statusEl.textContent += s + "\n";
     console.log(s);
@@ -91,6 +108,37 @@ function unlockAudio() {
 }
 document.getElementById('disc').addEventListener('click', unlockAudio);
 document.getElementById('canvas').addEventListener('click', unlockAudio);
+
+/* Save export/import: card0.mcr is a raw 128 KiB .mcr image (loads in
+ * DuckStation/PCSX). Export downloads the MEMFS copy; import replaces
+ * it and reloads the live card image. */
+document.getElementById('exportSave').addEventListener('click', function () {
+  try {
+    var data = FS.readFile('/memcard/card0.mcr');
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([data]));
+    a.download = 'dw_save_card0.mcr';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (e) {
+    statusEl.textContent += 'export failed: ' + e + '\n';
+  }
+});
+document.getElementById('importSave').addEventListener('change', function (e) {
+  var f = e.target.files[0];
+  if (!f) return;
+  f.arrayBuffer().then(function (buf) {
+    if (buf.byteLength !== 0x20000) {
+      statusEl.textContent += 'import rejected: not 128 KiB\n';
+      return;
+    }
+    FS.writeFile('/memcard/card0.mcr', new Uint8Array(buf));
+    FS.syncfs(false, function () {});
+    if (Module.ccall)
+      Module.ccall('web_mc_reload', null, ['number'], [0]);
+    statusEl.textContent += 'save imported: ' + f.name + '\n';
+  });
+});
 
 var m = location.search.match(/[?&]disc=([^&]+)/);
 if (m) {

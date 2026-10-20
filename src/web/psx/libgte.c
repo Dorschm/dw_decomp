@@ -95,13 +95,15 @@ static void mul_rt_cols(const MATRIX *m1, int32_t r[3][3])
 	}
 }
 
+/* store order from the MulMatrix0 asm (8009A954-9A9C): words are
+ * (r00|r01<<16), (r02|r10<<16), (r11|r12<<16), (r20|r21<<16), r22. */
 static void store_rot(int32_t r[3][3], MATRIX *m)
 {
 	uint32_t *w = (uint32_t *)m;
 	w[0] = (uint16_t)r[0][0] | ((uint32_t)(uint16_t)r[0][1] << 16);
-	w[1] = (uint16_t)r[1][0] | ((uint32_t)(uint16_t)r[1][1] << 16);
-	w[2] = (uint16_t)r[2][0] | ((uint32_t)(uint16_t)r[2][1] << 16);
-	w[3] = (uint16_t)r[0][2] | ((uint32_t)(uint16_t)r[1][2] << 16);
+	w[1] = (uint16_t)r[0][2] | ((uint32_t)(uint16_t)r[1][0] << 16);
+	w[2] = (uint16_t)r[1][1] | ((uint32_t)(uint16_t)r[1][2] << 16);
+	w[3] = (uint16_t)r[2][0] | ((uint32_t)(uint16_t)r[2][1] << 16);
 	((uint16_t *)m)[8] = (uint16_t)r[2][2];
 }
 

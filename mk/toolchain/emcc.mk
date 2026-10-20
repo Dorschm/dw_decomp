@@ -1,6 +1,6 @@
 CC := emcc
 
-CFLAGS := -O1 -g -Wall -std=c99 -sUSE_SDL=2
+CFLAGS := -O2 -Wall -std=c99 -sUSE_SDL=2
 
 # No -Werror for game code (it must not be edited); our own code under
 # src/web/ gets it via a target-specific flag below.

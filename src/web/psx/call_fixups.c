@@ -318,19 +318,6 @@ void memcpy_p(uint8_t *dst, uint8_t *src, uint32_t size)
 	(void)memcpy((int32_t)dst, (int32_t)src, (int32_t)size);
 }
 
-/* ---- libmcrd: main.c declares these returning long ---- */
-
-long MemCardInit(long flg)
-{
-	(void)flg;
-	return web_unimplemented("MemCardInit");
-}
-
-long MemCardStart(void)
-{
-	return web_unimplemented("MemCardStart");
-}
-
 /* ---- debug state probe for the input harness ---- */
 
 extern int32_t CURRENT_MENU, TARGET_MENU, FIRST_SCREEN_PRESSED_START;
@@ -356,6 +343,49 @@ void web_debug_state(void)
 		(unsigned)SCRIPT_STATE_2, (unsigned)NAMING_BOX_FLAG,
 		(unsigned)NAMING_CURRENT_LETTER, (unsigned)NAMING_SELECTOR,
 		(int)MAIN_STATE, (int)CURRENT_SCREEN);
+	{
+		extern int16_t FADE_OUT_CURRENT, FADE_IN_CURRENT;
+		extern uint8_t FADE_OUT_IN_PROGRESS, FADE_PROGRESS;
+		emscripten_console_logf("fade: out=%ld in=%ld prog=%d fip=%d",
+			(long)FADE_OUT_CURRENT, (long)FADE_IN_CURRENT,
+			(int)FADE_PROGRESS, (int)FADE_OUT_IN_PROGRESS);
+	}
+	{
+		/* Tamer/partner world position for walkthrough probes.
+		 * Entity: type(4) posData(4); PositionData: obj(16)
+		 * posMatrix(80) scale(12) rotation(8) location(12). */
+		extern char TAMER_ENTITY[], PARTNER_ENTITY[];
+		uint8_t *tp = *(uint8_t **)(TAMER_ENTITY + 4);
+		uint8_t *pp = *(uint8_t **)(PARTNER_ENTITY + 4);
+		if (tp)
+			emscripten_console_logf("tamer: %ld %ld %ld",
+				(long)*(int32_t *)(tp + 116),
+				(long)*(int32_t *)(tp + 120),
+				(long)*(int32_t *)(tp + 124));
+		if (pp)
+			emscripten_console_logf("partner: %ld %ld %ld",
+				(long)*(int32_t *)(pp + 116),
+				(long)*(int32_t *)(pp + 120),
+				(long)*(int32_t *)(pp + 124));
+	}
+	{
+		/* camera + view-matrix state: GS_VIEWPOINT params and the
+		 * composed GsWSMATRIX (R[0][0],R[1][1],R[2][2] + t) */
+		extern int32_t GS_VIEWPOINT;
+		extern int32_t GsWSMATRIX;
+		int32_t *v = &GS_VIEWPOINT;
+		int32_t *wm = &GsWSMATRIX;
+		int16_t *mm = (int16_t *)wm;
+		emscripten_console_logf(
+			"view: vp=%ld,%ld,%ld vr=%ld,%ld,%ld rz=%ld ws.t=%ld,%ld,%ld "
+			"ws.m=%d %d %d / %d %d %d / %d %d %d",
+			(long)v[0], (long)v[1], (long)v[2],
+			(long)v[3], (long)v[4], (long)v[5], (long)v[6],
+			(long)wm[5], (long)wm[6], (long)wm[7],
+			(int)mm[0], (int)mm[1], (int)mm[2],
+			(int)mm[3], (int)mm[4], (int)mm[5],
+			(int)mm[6], (int)mm[7], (int)mm[8]);
+	}
 	{
 		static const char *nm[8] = {
 			"F3", "NF3", 0, 0, "TF3", "TNF3", 0, 0 };

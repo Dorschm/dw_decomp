@@ -227,6 +227,8 @@ DRAWENV *GetDrawEnv(DRAWENV *env)
 /* glabel DrawOTag */
 void DrawOTag(u_long *p)
 {
+	extern double emscripten_get_now(void);
+	double t0 = emscripten_get_now();
 	uint32_t tag = *p;
 	gpu_stats.ot_walks++;
 	int guard = 0;
@@ -241,6 +243,7 @@ void DrawOTag(u_long *p)
 			break;
 		}
 	}
+	gpu_stats.draw_ms += emscripten_get_now() - t0;
 }
 
 void DrawPrim(void *p)
@@ -291,6 +294,27 @@ static const char *src_class(const void *p, uintptr_t *off)
 int LoadImage(RECT *rect, u_long *p)
 {
 	static int logged;
+	static int glogged;
+	/* glyph-cell upload into the text page: 3 words x 11 rows of 4bpp */
+	if (rect->w == 3 && rect->h == 11 && rect->x >= 704 &&
+	    rect->x < 768 && rect->y >= 256 && rect->y < 512 &&
+	    glogged < 40) {
+		const uint8_t *b = (const uint8_t *)p;
+		int r, c;
+		glogged++;
+		printf("glyph->%d,%d vsync=%ld\n", rect->x * 4, rect->y,
+		       (long)web_vsync_count);
+		for (r = 0; r < 11; r++) {
+			char ln[13];
+			for (c = 0; c < 6; c++) {
+				uint8_t v = b[r * 6 + c];
+				ln[c * 2] = " #"[!!(v & 0x0f)];
+				ln[c * 2 + 1] = " #"[!!(v & 0xf0)];
+			}
+			ln[12] = 0;
+			printf("glyph %s\n", ln);
+		}
+	}
 	if (web_vsync_count >= 2400 && logged < 300) {
 		uintptr_t off;
 		const char *cl = src_class(p, &off);

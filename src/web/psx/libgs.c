@@ -14,6 +14,7 @@
 #include <emscripten/console.h>
 
 #include <web/host/log.h>
+#include <web/psx/gte.h>
 
 MATRIX GsWSMATRIX;
 MATRIX GsIDMATRIX = { { {0x1000,0,0}, {0,0x1000,0}, {0,0,0x1000} }, {0,0,0} };
@@ -291,6 +292,7 @@ void GsSetDrawBuffOffset(void)
 	} else {
 		int ox = POSITION.offx + PSDOFSX[PSDIDX ? 0 : 1];
 		int oy = POSITION.offy + PSDOFSY[PSDIDX ? 0 : 1];
+		SetGeomOffset(ox, oy);
 		GsORGOFSX = ox;
 		GsORGOFSY = oy;
 	}
@@ -728,7 +730,7 @@ static void Gssub_make_matrix(MATRIX *m, long s, long c, int axis)
 	*m = GsIDMATRIX;
 	switch (axis) {
 	case 0x78:
-		m->m[0][2] = (short)c;
+		m->m[1][1] = (short)c;
 		m->m[2][2] = (short)c;
 		m->m[1][2] = (short)-s;
 		m->m[2][1] = (short)s;
@@ -999,6 +1001,9 @@ typedef PACKET *(*GsPfnL)(void *, SVECTOR *, SVECTOR *, PACKET *,
 typedef PACKET *(*GsPfnN)(void *, SVECTOR *, PACKET *,
 			  u_long, u_long, GsOT *, u_long *);
 
+int gs_trace_n;
+void web_gs_trace(int n) { gs_trace_n = n; }
+
 /* glabel GsSortObject4J */
 void GsSortObject4J(GsDOBJ2 *objp, GsOT *otp, int shift, u_long *scratch)
 {
@@ -1039,6 +1044,9 @@ void GsSortObject4J(GsDOBJ2 *objp, GsOT *otp, int shift, u_long *scratch)
 	nortop = (SVECTOR *)tmd->nortop;
 	if (remain == 0)
 		return;
+	int trace = gs_trace_n > 0;
+	PACKET *trace_pk0 = GsOUT_PACKET_P;
+	int trace_emitted = 0;
 
 	while (remain > 0) {
 		uint32_t w0 = *(uint32_t *)p;
@@ -1178,12 +1186,55 @@ void GsSortObject4J(GsDOBJ2 *objp, GsOT *otp, int shift, u_long *scratch)
 			adv = 0;
 			break;
 		}
-		if (r != NULL)
+		if (r != NULL) {
 			GsOUT_PACKET_P = r;
+			if (trace)
+				trace_emitted += (int)n;
+		}
 		if (adv <= 0)
 			break;
 		remain -= (long)n;
 		p += adv;
+	}
+	if (trace) {
+		gs_trace_n--;
+		uint32_t *q = (uint32_t *)trace_pk0;
+		long *tt = objp->coord2 ? objp->coord2->coord.t : 0;
+		/* count emitted prims whose first vertex lands on-screen
+		 * (PSDGPU mode: raster offset adds (160,120) or (160,360)) */
+		int vis = 0;
+		uint8_t *pp = (uint8_t *)trace_pk0;
+		int k;
+		for (k = 0; k < trace_emitted; k++) {
+			uint32_t tag = *(uint32_t *)pp;
+			uint32_t xy = *(uint32_t *)(pp + 8);
+			int sx = (int16_t)(xy & 0xffff);
+			int sy = (int16_t)(xy >> 16);
+			if (sx >= -160 && sx <= 160 && sy >= -360 && sy <= 120)
+				vis++;
+			pp += ((tag >> 24) + 1) * 4;
+		}
+		emscripten_console_logf(
+			"sobj attr=%08lx primn=%ld emitted=%d vis=%d t=%ld,%ld,%ld "
+			"pk0=%08x sxy=%08x %08x %08x otz=%x "
+			"rt=[%04x %04x %04x %04x %04x] tr=%lx,%lx,%lx h=%lx of=%lx,%lx",
+			objp->attribute, (long)tmd->primn, trace_emitted, vis,
+			tt ? (long)tt[0] : 0, tt ? (long)tt[1] : 0,
+			tt ? (long)tt[2] : 0,
+			q ? q[0] : 0,
+			trace_emitted ? q[2] : 0,
+			trace_emitted ? q[3] : 0,
+			trace_emitted ? q[4] : 0,
+			gte_ldr(7),
+			gte_regs.c[0] & 0xffff, gte_regs.c[0] >> 16,
+			gte_regs.c[1] & 0xffff, gte_regs.c[1] >> 16,
+			gte_regs.c[2] & 0xffff,
+			(unsigned long)gte_regs.c[5],
+			(unsigned long)gte_regs.c[6],
+			(unsigned long)gte_regs.c[7],
+			(unsigned long)gte_regs.c[26],
+			(unsigned long)gte_regs.c[24],
+			(unsigned long)gte_regs.c[25]);
 	}
 }
 

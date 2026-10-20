@@ -43,6 +43,7 @@ typedef struct GpuStats {
 	uint32_t tex_px;	/* textured pixels written */
 	uint32_t tex_miss;	/* texel==0 skips */
 	uint32_t tex_prim[3];	/* textured prims by depth 4/8/15bpp */
+	double draw_ms;		/* wall ms inside DrawOTag this vsync frame */
 } GpuStats;
 
 extern GpuStats gpu_stats;
