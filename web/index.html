@@ -5,7 +5,8 @@
 <title>Digimon World - web port</title>
 <style>
   body { background: #111; color: #ccc; font-family: monospace; margin: 2em; }
-  #canvas { border: 1px solid #444; display: block; margin: 1em 0; }
+  #canvas { border: 1px solid #444; display: block; margin: 1em 0;
+    width: 640px; height: 480px; image-rendering: pixelated; }
   #status { white-space: pre-wrap; }
 </style>
 </head>
@@ -13,7 +14,7 @@
 <h1>Digimon World (web port)</h1>
 <input type="file" id="disc" accept=".bin">
 <label for="disc">Select your Digimon World (USA) .bin</label>
-<canvas id="canvas" width="640" height="480"></canvas>
+<canvas id="canvas" width="320" height="240"></canvas>
 <div id="status">waiting for disc...</div>
 <script>
 var statusEl = document.getElementById('status');

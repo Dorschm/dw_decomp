@@ -11,6 +11,7 @@ WASM := $(BUILD_DIR)/dw.wasm
 LDFLAGS := -O1 -g -sUSE_SDL=2 -sASYNCIFY \
 	-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=64MB \
 	-sEXPORTED_RUNTIME_METHODS=FS,ccall,cwrap \
+	-sEXPORTED_FUNCTIONS=_main,_web_dump_display,_web_dump_vram,_web_gpu_stats \
 	-sEMULATE_FUNCTION_POINTER_CASTS=1 \
 	-sNO_EXIT_RUNTIME=1
 
