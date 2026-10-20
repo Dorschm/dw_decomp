@@ -399,6 +399,10 @@ void loadDynamicLibrary(Overlay lib, uint8_t *isComplete, uint8_t isAsync,
 {
 	uint8_t *nv;
 
+#ifdef PLATFORM_WEB
+	extern void web_overlay_reset(int lib);
+	web_overlay_reset(lib);
+#endif
 	if (!isAsync) {
 		readFile(REL_BIN_FILES[lib - 1], (nv = REL_BIN_OFFSETS[lib - 1]));
 	} else {

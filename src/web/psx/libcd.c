@@ -848,8 +848,12 @@ u_long StGetNext(u_long **addr, u_long **header)
 				st_pump(b);
 				continue;
 			}
-			if (++spins > 2000)
+			if (++spins > 2000) {
+				emscripten_console_logf(
+					"str: getnext starved lba=%u del=%u",
+					st_lba, st_delivered);
 				return 1;
+			}
 			VSync(0); /* wait for the next sector burst */
 		}
 	}

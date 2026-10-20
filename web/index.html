@@ -2,47 +2,179 @@
 <html>
 <head>
 <meta charset="utf-8">
-<title>Digimon World - web port</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Digimon World — web port</title>
 <style>
-  body { background: #111; color: #ccc; font-family: monospace; margin: 2em; }
-  #canvas { border: 1px solid #444; display: block; margin: 1em 0;
-    width: 640px; height: 480px; image-rendering: pixelated; }
-  #status { white-space: pre-wrap; }
+  :root { --accent: #e8a33d; --panel: #1a1d24; --edge: #333a47; }
+  * { box-sizing: border-box; }
+  body { background: #0e1013; color: #cfd3dc; margin: 0;
+         font: 14px/1.45 "Segoe UI", system-ui, sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 22px; margin: 8px 0 4px; color: var(--accent);
+       letter-spacing: .5px; }
+  .sub { color: #8b93a3; margin-bottom: 14px; }
+  .sub b { color: #cfd3dc; }
+  .stage { position: relative; background: #000; border: 1px solid var(--edge);
+           border-radius: 6px; overflow: hidden; }
+  #canvas { display: block; margin: 0 auto; image-rendering: pixelated;
+            image-rendering: crisp-edges; background: #000; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+         margin: 12px 0; }
+  button, .filebtn { background: var(--panel); border: 1px solid var(--edge);
+           color: #dfe3ea; padding: 7px 14px; border-radius: 5px;
+           font: inherit; cursor: pointer; }
+  button:hover, .filebtn:hover { border-color: var(--accent); }
+  .filebtn input { display: none; }
+  #status { background: var(--panel); border: 1px solid var(--edge);
+            border-radius: 5px; padding: 8px 10px; min-height: 2.6em;
+            white-space: pre-wrap; font-family: Consolas, monospace;
+            font-size: 12px; color: #9fb2c8; }
+  #beat { color: #6f8f6f; }
+  .cols { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 12px; }
+  .cols h2 { font-size: 13px; text-transform: uppercase; color: #8b93a3;
+             letter-spacing: 1px; margin: 0 0 6px; }
+  table.keys { border-collapse: collapse; font-family: Consolas, monospace;
+               font-size: 12px; }
+  table.keys td { padding: 1px 10px 1px 0; }
+  table.keys td:first-child { color: var(--accent); }
+  .note { color: #8b93a3; font-size: 12px; margin-top: 6px; }
+
+  /* touch controls — only rendered on touch devices */
+  #touch { display: none; margin-top: 10px; user-select: none;
+           -webkit-user-select: none; }
+  #touch.show { display: block; }
+  #touch .row { display: flex; justify-content: space-between;
+                align-items: center; margin-top: 8px; }
+  #touch .cluster { display: grid; gap: 6px; }
+  #touch .dpad { grid-template-columns: repeat(3, 56px);
+                 grid-template-rows: repeat(3, 56px); }
+  #touch .face { grid-template-columns: repeat(2, 56px);
+                 grid-template-rows: repeat(2, 56px); }
+  #touch button { width: 56px; height: 56px; padding: 0; font-size: 18px;
+                  border-radius: 10px; background: #232834;
+                  touch-action: none; }
+  #touch button.on { background: var(--accent); color: #000; }
+  #touch .mid button { width: 72px; height: 34px; font-size: 12px;
+                       border-radius: 17px; }
+  #touch .sh button { width: 64px; height: 34px; font-size: 12px; }
+  #touch .invis { visibility: hidden; }
 </style>
 </head>
 <body>
-<h1>Digimon World (web port)</h1>
-<input type="file" id="disc" accept=".bin">
-<label for="disc">Select your Digimon World (USA) .bin</label>
-<canvas id="canvas" width="320" height="240"></canvas>
-<div>
-  <button id="exportSave">Export save</button>
-  <label>Import save <input type="file" id="importSave" accept=".mcr"></label>
+<div class="wrap">
+  <h1>Digimon World</h1>
+  <div class="sub">PlayStation port running natively in your browser —
+       <b>select your own Digimon World (USA) .bin — nothing is uploaded</b>,
+       the file is read locally.</div>
+
+  <div class="bar">
+    <label class="filebtn">Select .bin<input type="file" id="disc"
+        accept=".bin,.img,.cue"></label>
+    <button id="fs">Fullscreen</button>
+    <button id="exportSave">Export save</button>
+    <label class="filebtn">Import save<input type="file" id="importSave"
+        accept=".mcr"></label>
+    <span id="beat"></span>
+  </div>
+
+  <div class="stage"><canvas id="canvas" width="320" height="240"></canvas>
+    <div id="touch">
+      <div class="row sh">
+        <button data-bit="0x0004">L1</button>
+        <button data-bit="0x0008">R1</button>
+      </div>
+      <div class="row">
+        <div class="cluster dpad">
+          <span class="invis"></span><button data-bit="0x1000">▲</button><span class="invis"></span>
+          <button data-bit="0x8000">◀</button><span class="invis"></span><button data-bit="0x2000">▶</button>
+          <span class="invis"></span><button data-bit="0x4000">▼</button><span class="invis"></span>
+        </div>
+        <div class="cluster mid">
+          <button data-bit="0x0100">Select</button>
+          <button data-bit="0x0800">Start</button>
+        </div>
+        <div class="cluster face">
+          <button data-bit="0x0010">△</button><button data-bit="0x0020">◯</button>
+          <button data-bit="0x0080">□</button><button data-bit="0x0040">✕</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="status">waiting for disc…</div>
+  <div class="note" id="audioHint">audio starts after your first click/tap
+       (browser autoplay policy). a gamepad works too — d-pad/left stick,
+       A=Cross B=Circle X=Square Y=Triangle.</div>
+
+  <div class="cols">
+    <div>
+      <h2>Keyboard</h2>
+      <table class="keys">
+        <tr><td>Arrows</td><td>D-pad</td></tr>
+        <tr><td>X</td><td>Cross (confirm)</td></tr>
+        <tr><td>Z</td><td>Square</td></tr>
+        <tr><td>S</td><td>Triangle</td></tr>
+        <tr><td>A</td><td>Circle</td></tr>
+        <tr><td>Q / W</td><td>L1 / R1</td></tr>
+        <tr><td>E / R</td><td>L2 / R2</td></tr>
+        <tr><td>Enter</td><td>Start</td></tr>
+        <tr><td>Right Shift</td><td>Select</td></tr>
+      </table>
+    </div>
+    <div>
+      <h2>Saves</h2>
+      <div class="note">One emulated memory card in slot 1 (128&nbsp;KiB
+        <code>.mcr</code>, DuckStation/PCSX-compatible).<br>
+        Stored in your browser's IndexedDB — Export to keep a copy.</div>
+    </div>
+  </div>
 </div>
-<div id="status">waiting for disc...</div>
-<div id="audioHint">click the canvas or file picker to enable audio</div>
+
 <script>
 var statusEl = document.getElementById('status');
+var beatEl = document.getElementById('beat');
+var bootTime = null;
+setInterval(function () {
+  if (bootTime)
+    beatEl.textContent = '● ' + Math.round((Date.now() - bootTime) / 1000) + 's';
+}, 1000);
 
-/* Disc source abstraction: either a File from the picker (read via
- * Blob.slice, no full-file memory copy) or a fully fetched ArrayBuffer
- * from ?disc=<url>. The game waits on Module.disc.ready (CdInit blocks
- * inside Asyncify until a disc is attached). */
-var discSource = null; /* {readRaw(off, len) -> Promise<Uint8Array>} */
+/* Integer-scale the canvas to the largest 4:3 fit. The game's display
+ * area is 320x240; SDL may resize it (e.g. 24-bit movie path), so scale
+ * off the canvas's own pixel size. */
+function fitCanvas() {
+  var c = document.getElementById('canvas');
+  var availW = Math.min(window.innerWidth - 24,
+                        document.querySelector('.stage').clientWidth - 2);
+  var availH = window.innerHeight - c.getBoundingClientRect().top - 140;
+  var scale = Math.max(1, Math.floor(Math.min(
+      availW / c.width, availH / c.height)));
+  c.style.width = (c.width * scale) + 'px';
+  c.style.height = (c.height * scale) + 'px';
+}
+window.addEventListener('resize', fitCanvas);
+setInterval(fitCanvas, 2000);   /* catches canvas attribute resizes */
+
+document.getElementById('fs').addEventListener('click', function () {
+  var s = document.querySelector('.stage');
+  (s.requestFullscreen || s.webkitRequestFullscreen).call(s);
+});
+
+/* ---- disc source -------------------------------------------------- */
+var discSource = null;
 var discResolve;
 var discReady = new Promise(function (r) { discResolve = r; });
-
 function attachSource(src) {
   if (discSource) return;
   discSource = src;
+  bootTime = Date.now();
   discResolve(src);
 }
 
 Module = {
   canvas: document.getElementById('canvas'),
   /* Mount IDBFS at /memcard and pull persisted card images before
-   * dw_main starts (run dependency delays main until syncfs(true)
-   * finishes). Skipped headless (no IndexedDB). */
+   * dw_main starts. Skipped headless (no IndexedDB). */
   preRun: function () {
     if (typeof indexedDB === 'undefined') return;
     addRunDependency('memcard');
@@ -54,18 +186,18 @@ Module = {
     });
   },
   print: function (s) {
-    statusEl.textContent += s + "\n";
+    /* keep the last few lines visible */
+    var lines = (statusEl.textContent + s).split('\n');
+    if (lines.length > 4) lines = lines.slice(-4);
+    statusEl.textContent = lines.join('\n');
     console.log(s);
   },
   printErr: function (s) { console.warn(s); },
   disc: {
     ready: discReady,
-    /* readRaw(lba, nsec) -> Promise<Uint8Array> of nsec*2352 bytes */
     readRaw: function (lba, nsec) {
-      var off = lba * 2352, len = nsec * 2352;
-      return discSource.readRaw(off, len);
+      return discSource.readRaw(lba * 2352, nsec * 2352);
     },
-    /* readUser(lba, nsec) -> Promise<Uint8Array> of nsec*2048 bytes */
     readUser: function (lba, nsec) {
       return Module.disc.readRaw(lba, nsec).then(function (raw) {
         var out = new Uint8Array(nsec * 2048);
@@ -94,55 +226,9 @@ document.getElementById('disc').addEventListener('change', function (e) {
   });
 });
 
-/* Audio autoplay: resume the SDL audio device on the first user
- * gesture (file pick or canvas click). */
-var audioUnlocked = false;
-function unlockAudio() {
-  if (audioUnlocked) return;
-  audioUnlocked = true;
-  if (Module.ccall) {
-    try { Module.ccall('web_audio_resume', null, [], []); } catch (e) {}
-  }
-  var el = document.getElementById('audioHint');
-  if (el) el.textContent = '';
-}
-document.getElementById('disc').addEventListener('click', unlockAudio);
-document.getElementById('canvas').addEventListener('click', unlockAudio);
-
-/* Save export/import: card0.mcr is a raw 128 KiB .mcr image (loads in
- * DuckStation/PCSX). Export downloads the MEMFS copy; import replaces
- * it and reloads the live card image. */
-document.getElementById('exportSave').addEventListener('click', function () {
-  try {
-    var data = FS.readFile('/memcard/card0.mcr');
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([data]));
-    a.download = 'dw_save_card0.mcr';
-    a.click();
-    URL.revokeObjectURL(a.href);
-  } catch (e) {
-    statusEl.textContent += 'export failed: ' + e + '\n';
-  }
-});
-document.getElementById('importSave').addEventListener('change', function (e) {
-  var f = e.target.files[0];
-  if (!f) return;
-  f.arrayBuffer().then(function (buf) {
-    if (buf.byteLength !== 0x20000) {
-      statusEl.textContent += 'import rejected: not 128 KiB\n';
-      return;
-    }
-    FS.writeFile('/memcard/card0.mcr', new Uint8Array(buf));
-    FS.syncfs(false, function () {});
-    if (Module.ccall)
-      Module.ccall('web_mc_reload', null, ['number'], [0]);
-    statusEl.textContent += 'save imported: ' + f.name + '\n';
-  });
-});
-
 var m = location.search.match(/[?&]disc=([^&]+)/);
 if (m) {
-  statusEl.textContent = 'fetching disc ' + decodeURIComponent(m[1]) + ' ...\n';
+  statusEl.textContent = 'fetching disc ' + decodeURIComponent(m[1]) + ' …\n';
   fetch(decodeURIComponent(m[1])).then(function (r) {
     if (!r.ok) throw new Error('HTTP ' + r.status);
     return r.arrayBuffer();
@@ -158,6 +244,78 @@ if (m) {
     statusEl.textContent = 'disc fetch failed: ' + err + '\n';
   });
 }
+
+/* ---- audio unlock -------------------------------------------------- */
+var audioUnlocked = false;
+function unlockAudio() {
+  if (audioUnlocked) return;
+  audioUnlocked = true;
+  if (Module.ccall)
+    try { Module.ccall('web_audio_resume', null, [], []); } catch (e) {}
+  document.getElementById('audioHint').textContent =
+    'a gamepad works too — d-pad/left stick, A=Cross B=Circle ' +
+    'X=Square Y=Triangle.';
+}
+window.addEventListener('pointerdown', unlockAudio);
+window.addEventListener('keydown', unlockAudio);
+
+/* ---- save export/import ------------------------------------------- */
+document.getElementById('exportSave').addEventListener('click', function () {
+  try {
+    var data = FS.readFile('/memcard/card0.mcr');
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([data]));
+    a.download = 'dw_save_card0.mcr';
+    a.click();
+    URL.revokeObjectURL(a.href);
+    statusEl.textContent += '\nsave exported';
+  } catch (e) {
+    statusEl.textContent += '\nexport failed: ' + e;
+  }
+});
+document.getElementById('importSave').addEventListener('change', function (e) {
+  var f = e.target.files[0];
+  if (!f) return;
+  f.arrayBuffer().then(function (buf) {
+    if (buf.byteLength !== 0x20000) {
+      statusEl.textContent += '\nimport rejected: not 128 KiB';
+      return;
+    }
+    FS.writeFile('/memcard/card0.mcr', new Uint8Array(buf));
+    FS.syncfs(false, function () {});
+    if (Module.ccall)
+      Module.ccall('web_mc_reload', null, ['number'], [0]);
+    statusEl.textContent += '\nsave imported: ' + f.name;
+  });
+});
+
+/* ---- touch controls ------------------------------------------------ */
+if (('ontouchstart' in window) || navigator.maxTouchPoints > 0) {
+  var touch = document.getElementById('touch');
+  touch.classList.add('show');
+  var touchBits = 0;
+  var applyTouch = function () {
+    if (Module.ccall)
+      try { Module.ccall('web_pad_set_touch', null, ['number'],
+                         [touchBits]); } catch (e) {}
+  };
+  touch.querySelectorAll('button').forEach(function (btn) {
+    var bit = parseInt(btn.dataset.bit, 16);
+    var down = function (e) {
+      e.preventDefault();
+      touchBits |= bit; btn.classList.add('on'); applyTouch();
+    };
+    var up = function (e) {
+      e.preventDefault();
+      touchBits &= ~bit; btn.classList.remove('on'); applyTouch();
+    };
+    btn.addEventListener('pointerdown', down);
+    btn.addEventListener('pointerup', up);
+    btn.addEventListener('pointercancel', up);
+    btn.addEventListener('pointerleave', up);
+  });
+}
+fitCanvas();
 </script>
 <script src="dw.js"></script>
 </body>

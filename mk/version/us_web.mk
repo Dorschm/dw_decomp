@@ -42,6 +42,46 @@ $(GEN_DIR)/libgte_tables.c: tools/gen_web_data.py \
 
 OBJ += $(BUILD_DIR)/$(GEN_DIR)/libgte_tables.c.o
 
+# Overlay .data reset tables (src/web/host/overlay.c): enumerate the
+# writable globals of each overlay object so their initial bytes can be
+# snapshotted at startup and restored on each loadDynamicLibrary() call.
+# Regenerated after the overlay objects are compiled.
+comma := ,
+empty :=
+space := $(empty) $(empty)
+LLVM_NM ?= /emsdk/upstream/bin/llvm-nm
+
+$(GEN_DIR)/overlay_syms.c: tools/gen_overlay_syms.py \
+	$(BTL_OBJ) $(DGET_OBJ) $(DOO2_OBJ) $(DOOA_OBJ) $(EAB_OBJ) \
+	$(ENDI_OBJ) $(EVL_OBJ) $(FISH_OBJ) $(KAR_OBJ) $(MOV_OBJ) \
+	$(MURD_OBJ) $(SHOP_OBJ) $(STD_OBJ) $(TRN_OBJ) $(TRN2_OBJ) $(VS_OBJ)
+	@mkdir -p $(dir $@)
+	$(PYTHON) tools/gen_overlay_syms.py $@ nm=$(LLVM_NM) \
+		btl=$(subst $(space),$(comma),$(BTL_OBJ)) \
+		dget=$(subst $(space),$(comma),$(DGET_OBJ)) \
+		doo2=$(subst $(space),$(comma),$(DOO2_OBJ)) \
+		dooa=$(subst $(space),$(comma),$(DOOA_OBJ)) \
+		eab=$(subst $(space),$(comma),$(EAB_OBJ)) \
+		endi=$(subst $(space),$(comma),$(ENDI_OBJ)) \
+		evl=$(subst $(space),$(comma),$(EVL_OBJ)) \
+		fish=$(subst $(space),$(comma),$(FISH_OBJ)) \
+		kar=$(subst $(space),$(comma),$(KAR_OBJ)) \
+		mov=$(subst $(space),$(comma),$(MOV_OBJ)) \
+		murd=$(subst $(space),$(comma),$(MURD_OBJ)) \
+		shop=$(subst $(space),$(comma),$(SHOP_OBJ)) \
+		std=$(subst $(space),$(comma),$(STD_OBJ)) \
+		trn=$(subst $(space),$(comma),$(TRN_OBJ)) \
+		trn2=$(subst $(space),$(comma),$(TRN2_OBJ)) \
+		vs=$(subst $(space),$(comma),$(VS_OBJ))
+
+# Generated table: compile without the PsyQ include path (same as the
+# web host layer - system headers only).
+$(BUILD_DIR)/$(GEN_DIR)/overlay_syms.c.o: CPPFLAGS = \
+	-DLANGUAGE_C -D$(VERSION_MACRO) -DPLATFORM_WEB \
+	-Iinclude -Isrc -I$(GEN_DIR)
+
+OBJ += $(BUILD_DIR)/$(GEN_DIR)/overlay_syms.c.o
+
 # These TUs embed Shift-JIS text literals. The gcc build relies on
 # -finput-charset=UTF-8 -fexec-charset=CP932 to transcode them; clang has no
 # CP932 exec charset, so the web build compiles octal-escaped copies

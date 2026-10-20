@@ -28,6 +28,7 @@
 static SDL_GameController *controller;
 static uint32_t key_bits;
 static uint32_t injected_bits;
+static uint32_t touch_bits;
 static int inject_log;
 
 /* Test-harness hook: ORs pad1 bits into the next web_pad_state() result.
@@ -39,6 +40,13 @@ void web_pad_inject(uint32_t pad1bits)
 		fprintf(stderr, "pad: inject %04x\n", pad1bits);
 	}
 	injected_bits |= pad1bits;
+}
+
+/* Touch overlay hook: unlike web_pad_inject (one-shot), these bits are
+ * held until the caller clears them - each PadRead ORs them in. */
+void web_pad_set_touch(uint32_t pad1bits)
+{
+	touch_bits = pad1bits;
 }
 
 static uint32_t key_bit(SDL_Keycode k)
@@ -101,7 +109,7 @@ uint32_t web_pad_state(void)
 	uint32_t b;
 
 	poll_events();
-	b = key_bits | injected_bits;
+	b = key_bits | touch_bits | injected_bits;
 	injected_bits = 0;
 	if (injected_bits && inject_log < 20) {
 		inject_log++;

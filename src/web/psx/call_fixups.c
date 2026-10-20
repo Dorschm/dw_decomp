@@ -412,3 +412,100 @@ void web_debug_state(void)
 							tmd_prim_counts[i]);
 	}
 }
+
+/* entity dump for the battle/walkthrough harness: index, type, world
+ * position, on-map/on-screen flags for every live ENTITY_TABLE entry */
+void web_entity_dump(void)
+{
+	extern char *ENTITY_TABLE[];
+	extern int8_t GAME_STATE;
+	extern int8_t CURRENT_SCREEN;
+	extern int8_t TAMER_STATE;
+	extern int32_t IS_SCRIPT_PAUSED;
+	extern uint8_t SCRIPT_TEXTBOX_MODE, ACTIVE_INSTRUCTION;
+	int i;
+
+	emscripten_console_logf(
+		"ent: state=%d scr=%d tstate=%d paused=%ld tbmode=%d "
+		"instr=%d", (int)GAME_STATE, (int)CURRENT_SCREEN,
+		(int)TAMER_STATE, (long)IS_SCRIPT_PAUSED,
+		(int)SCRIPT_TEXTBOX_MODE, (int)ACTIVE_INSTRUCTION);
+	for (i = 0; i < 10; i++) {
+		char *e = ENTITY_TABLE[i];
+		uint8_t *pd;
+		int32_t type, x, z;
+		int8_t onmap, onscr;
+		if (e == NULL)
+			continue;
+		type = *(int32_t *)(e + 0);
+		pd = *(uint8_t **)(e + 4);
+		if (pd == NULL)
+			continue;
+		{
+			extern unsigned char PSX_RAM[0x200000];
+			uintptr_t pv = (uintptr_t)pd;
+			uintptr_t ram = (uintptr_t)PSX_RAM;
+			if (pv >= ram && pv < ram + 0x200000)
+				pd = PSX_RAM + (pv & 0x1fffff);
+			else if ((pv >> 28) == 0x8)
+				pd = PSX_RAM + (pv & 0x1fffff);
+		}
+		x = *(int32_t *)(pd + 116);
+		z = *(int32_t *)(pd + 124);
+		onmap = *(int8_t *)(e + 52);
+		onscr = *(int8_t *)(e + 53);
+		/* for i>=2 ENTITY_TABLE points into NPC_ENTITIES
+		 * (NPCEntity layout: scriptId @102, autotalk @103) */
+		emscripten_console_logf(
+			"ent[%d]: type=%lx pos=%ld,%ld map=%d scr=%d "
+			"sid=%d auto=%d", i,
+			(unsigned long)type, (long)x, (long)z, (int)onmap,
+			(int)onscr, i >= 2 ? (int)(uint8_t)e[101] : -1,
+			i >= 2 ? (int)(uint8_t)e[102] : -1);
+	}
+	{
+		/* which scripted movement the interpreter is waiting on */
+		extern uint8_t WAIT_FOR_ENTITY_ID;
+		extern struct {
+			uint8_t type, entityId, target, speed;
+			int16_t posX, posY, targetX, targetY;
+		} SCRIPT_MOVEMENT[22];
+		int s;
+		emscripten_console_logf("wait: id=%d", (int)WAIT_FOR_ENTITY_ID);
+		{
+			extern int8_t CAMERA_REACHED_TARGET, CAMERA_HAS_TARGET;
+			extern int16_t CAMERA_MOVE_DIFF_X, CAMERA_MOVE_DIFF_Y;
+			extern int32_t DRAWING_OFFSET_X, DRAWING_OFFSET_Y;
+			emscripten_console_logf(
+				"cammv: reached=%d hastgt=%d diff=%ld,%ld ofs=%ld,%ld",
+				(int)CAMERA_REACHED_TARGET, (int)CAMERA_HAS_TARGET,
+				(long)(int32_t)CAMERA_MOVE_DIFF_X, (long)(int32_t)CAMERA_MOVE_DIFF_Y,
+				(long)DRAWING_OFFSET_X, (long)DRAWING_OFFSET_Y);
+		}
+		{
+			/* which UI boxes are open (0=main textbox,1/2=naming).
+			 * UIBoxData: 2xRECT(16) + frame/state/rowOffset/
+			 * visibleRows/totalRows s16 + features/color + 2 ptrs
+			 * => state (s16) @ +18, sizeof 36 */
+			extern char UI_BOX_DATA[6 * 36];
+			emscripten_console_logf(
+				"uibox: %d %d %d %d",
+				(int)*(int16_t *)(UI_BOX_DATA + 18),
+				(int)*(int16_t *)(UI_BOX_DATA + 36 + 18),
+				(int)*(int16_t *)(UI_BOX_DATA + 72 + 18),
+				(int)*(int16_t *)(UI_BOX_DATA + 108 + 18));
+		}
+		for (s = 0; s < 12; s++) {
+			if (SCRIPT_MOVEMENT[s].type != 0xff)
+				emscripten_console_logf(
+					"mv[%d]: type=%d ent=%d tgt=%d "
+					"pos=%d,%d spd=%d", s,
+					(int)SCRIPT_MOVEMENT[s].type,
+					(int)SCRIPT_MOVEMENT[s].entityId,
+					(int)SCRIPT_MOVEMENT[s].target,
+					(int)SCRIPT_MOVEMENT[s].posX,
+					(int)SCRIPT_MOVEMENT[s].posY,
+					(int)SCRIPT_MOVEMENT[s].speed);
+		}
+	}
+}

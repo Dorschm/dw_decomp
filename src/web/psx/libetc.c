@@ -176,8 +176,16 @@ u_long PadRead(int id)
 	 * here injected input comes from JS timers that starve unless we
 	 * suspend. Detect the spin (many polls without a VSync) and yield
 	 * ~1ms per poll until the next VSync. */
-	if (++pad_spin > 150)
+	if (++pad_spin > 150) {
+		static int spin_log;
+		if (spin_log < 4) {
+			spin_log++;
+			emscripten_console_logf(
+				"pad: spin-yield #%u (pad=%04lx)",
+				pad_spin, (unsigned long)web_pad_state());
+		}
 		emscripten_sleep(1);
+	}
 	/* pad1 in the low half, pad2 (none yet) in the high half */
 	return web_pad_state();
 }

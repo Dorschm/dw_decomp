@@ -20,6 +20,7 @@
 extern void *sbrk(intptr_t increment);
 
 extern int dw_main(void);
+extern void web_overlay_snapshot_all(void);
 extern unsigned char PSX_RAM[0x200000];
 
 /* src/web/psx/gpu.c */
@@ -308,6 +309,7 @@ int main(void)
 					"headless", SDL_GetError());
 	audio_init();
 	spu_reset();
+	web_overlay_snapshot_all();
 	emscripten_console_log("web: SDL up, calling dw_main()");
 	return dw_main();
 }
