@@ -1,0 +1,42 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Digimon World - web port</title>
+<style>
+  body { background: #111; color: #ccc; font-family: monospace; margin: 2em; }
+  #canvas { border: 1px solid #444; display: block; margin: 1em 0; }
+  #status { white-space: pre-wrap; }
+</style>
+</head>
+<body>
+<h1>Digimon World (web port)</h1>
+<input type="file" id="disc" accept=".bin">
+<label for="disc">Select your Digimon World (USA) .bin</label>
+<canvas id="canvas" width="640" height="480"></canvas>
+<div id="status">loading...</div>
+<script>
+var Module = {
+  canvas: document.getElementById('canvas'),
+  print: function (s) {
+    var el = document.getElementById('status');
+    el.textContent += s + "\n";
+    console.log(s);
+  },
+  printErr: function (s) { console.warn(s); },
+};
+
+document.getElementById('disc').addEventListener('change', function (e) {
+  var f = e.target.files[0];
+  if (!f) return;
+  f.arrayBuffer().then(function (buf) {
+    Module.FS.mkdir('/disc');
+    Module.FS.writeFile('/disc/dw.bin', new Uint8Array(buf));
+    document.getElementById('status').textContent =
+      'disc loaded: ' + f.size + ' bytes -> /disc/dw.bin\n';
+  });
+});
+</script>
+<script src="dw.js"></script>
+</body>
+</html>

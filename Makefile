@@ -6,7 +6,7 @@ PLATFORM ?= psx
 
 VERSIONS := jp jp_trial jp_bombom us jp_rev1 eu
 CONFIG := $(PLATFORM)/$(TOOLCHAIN)
-CONFIGS := psx/mwcc psx/gcc
+CONFIGS := psx/mwcc psx/gcc web/emcc
 MATCHING_CONFIG := psx/mwcc
 
 ifeq ($(filter $(VERSION),$(VERSIONS)),)
@@ -30,7 +30,11 @@ PYTHON := python3
 .DEFAULT_GOAL := all
 
 include mk/sources.mk
+ifeq ($(PLATFORM),web)
+include mk/version/$(VERSION)_web.mk
+else
 include mk/version/$(VERSION).mk
+endif
 include mk/toolchain/$(TOOLCHAIN).mk
 include mk/platform/$(PLATFORM).mk
 include mk/text.mk
@@ -55,4 +59,4 @@ reset: clean
 
 -include $(DEP)
 
-.PHONY: all generate regenerate clean reset compare expected objdiff report
+.PHONY: all generate regenerate clean reset compare expected objdiff report web
