@@ -24,14 +24,11 @@
 #include <emscripten/console.h>
 
 #include <web/host/log.h>
-#include "spu.h"
+#include "mixer.h"
 
 extern int _spu_setInTransfer(int);
 extern int _spu_getInTransfer(void);
 
-#define SPU_VREG(ch, o)  (0x1F801C00 + (ch) * 0x10 + (o))
-
-static void svreg(int ofs, unsigned short v) { spu_write_reg16(0x1F801C00 + ofs, v); }
 
 /* ---------------- module globals (libsnd.data.s equivalents) -------- */
 
@@ -279,13 +276,10 @@ static void _SsVmKeyOnNow(short on_off, unsigned short pitch)
     (void)on_off;
     SvmVoice *sv = &_svm_voice[v];
 
-    svreg(v * 0x10 + 0, (unsigned short)(sv->voll << 7));
-    svreg(v * 0x10 + 2, (unsigned short)(sv->volr << 7));
-    svreg(v * 0x10 + 4, pitch);
-    svreg(v * 0x10 + 6, (unsigned short)(_svm_cur.addr >> 3));
-    svreg(v * 0x10 + 8, _svm_cur.adsr1);
-    svreg(v * 0x10 + 0xA, _svm_cur.adsr2);
-    svreg(v * 0x10 + 0xE, (unsigned short)(_svm_cur.addr >> 3));
+    mix_voice_volume(v, (int16_t)(sv->voll << 7), (int16_t)(sv->volr << 7));
+    mix_voice_pitch(v, pitch);
+    mix_voice_sample(v, _svm_cur.addr);
+    mix_voice_adsr(v, _svm_cur.adsr1, _svm_cur.adsr2);
     SpuSetKey(SPU_ON, 1 << v);
 }
 
@@ -529,8 +523,7 @@ static void _SsVmSetSeqVol(short packed, unsigned short l, unsigned short r,
     (void)now;
     for (i = 0; i < _SsVmMaxVoice; i++) {
         if (_svm_voice[i].used && _svm_voice[i].seq == packed) {
-            svreg(i * 0x10 + 0, (unsigned short)(l << 7));
-            svreg(i * 0x10 + 2, (unsigned short)(r << 7));
+            mix_voice_volume(i, (int16_t)(l << 7), (int16_t)(r << 7));
             _svm_voice[i].voll = l;
             _svm_voice[i].volr = r;
         }
@@ -606,7 +599,7 @@ void _SsSetPitchBend(short seq, short tr)
             unsigned short p;
             _svm_cur.center = _svm_voice[i].vabB; /* placeholder */
             p = note2pitch2(_svm_voice[i].note, (unsigned char)(nf & 0x7F));
-            svreg(i * 0x10 + 4, p);
+            mix_voice_pitch(i, p);
         }
     }
 }
@@ -1159,8 +1152,7 @@ void SsQuit(void)
 /* glabel SsSetMVol */
 void SsSetMVol(short left, short right)
 {
-    svreg(0x180, (unsigned short)(left * 129));
-    svreg(0x182, (unsigned short)(right * 129));
+    mix_master_volume((int16_t)(left * 129), (int16_t)(right * 129));
 }
 
 /* ---------------- VAB ---------------- */
@@ -1292,6 +1284,12 @@ short SsVabTransBody(unsigned char *vag_addr, short vabId)
     SpuSetTransferStartAddr(_svm_vab_start[vabId]);
     SpuWrite(vag_addr, _svm_vab_total[vabId]);
     _svm_vab_used[vabId] = 1;
+    /* decode every VAG of the bank to PCM now, not at first key-on */
+    {
+        int i;
+        for (i = 1; i <= (_svm_vab_vh[vabId]->vs & 0xFF); i++)
+            mix_sample_prepare(vag_addr_of(vabId, (short)i));
+    }
     return vabId;
 }
 
@@ -1435,8 +1433,7 @@ short SsUtAutoVol(short vabId_voice, short voll, short volr, short delta)
     (void)delta;
     if ((unsigned short)vabId_voice >= 0x18) return -1;
     _autovol = 1;
-    svreg(vabId_voice * 0x10 + 0, (unsigned short)(voll << 7));
-    svreg(vabId_voice * 0x10 + 2, (unsigned short)(volr << 7));
+    mix_voice_volume(vabId_voice, (int16_t)(voll << 7), (int16_t)(volr << 7));
     _svm_voice[vabId_voice].voll = voll;
     _svm_voice[vabId_voice].volr = volr;
     return 0;

@@ -53,8 +53,7 @@ static int frame_cap;
  * (735 = 44100/60 = 4 * 183.75; the fractional sample is accumulated
  * so long-run timing is exact).
  */
-extern void spu_render(int16_t *out, int frames);
-extern void spu_reset(void);
+#include "../psx/mixer.h"
 extern void SsSeqCalledTbyT(void);
 extern long web_seq_tick_rate(void);
 
@@ -135,13 +134,13 @@ void web_audio_pump(void)
 		if (next > total)
 			next = total;
 		if (next > done) {
-			spu_render(audio_frame + done * 2, next - done);
+			mix_render(audio_frame + done * 2, next - done);
 			done = next;
 		}
 		SsSeqCalledTbyT();
 	}
 	if (done < total)
-		spu_render(audio_frame + done * 2, total - done);
+		mix_render(audio_frame + done * 2, total - done);
 	tick_pos -= total;
 
 	if (audio_ok) {
@@ -308,7 +307,7 @@ int main(void)
 		emscripten_console_logf("web: no renderer (%s); running "
 					"headless", SDL_GetError());
 	audio_init();
-	spu_reset();
+	mix_reset();
 	web_overlay_snapshot_all();
 	emscripten_console_log("web: SDL up, calling dw_main()");
 	return dw_main();
