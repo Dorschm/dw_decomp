@@ -21,7 +21,7 @@ void spu_render(int16_t *out, int frames);
 void spu_reset(void);
 
 /* diagnostics for the harness */
-extern unsigned long spu_kon_events;
+
 extern unsigned long spu_samples_rendered;
 
 #endif

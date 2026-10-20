@@ -37,6 +37,44 @@ static void *pend_buf;
 
 static int read_log_count;
 
+extern int VSync(int mode);
+extern unsigned int web_vsync_count;
+extern void spu_cd_input(const int16_t *stereo, int frames);
+extern void spu_write_reg16(uint32_t addr, uint16_t val);
+extern uint16_t spu_read_reg16(uint32_t addr);
+static void st_stream_arm(void);
+
+/* CD controller output attenuation matrix (ATV0..3): L = l*v0 + r*v1,
+ * R = l*v2 + r*v3, 0x80 = normal. Power-on default per psx-spx. */
+static uint8_t cd_atv[4] = { 0x80, 0x00, 0x80, 0x00 };
+
+/* glabel CD_initvol (asm/us/main/psyq/libcd.s): if the SPU main volume
+ * regs are still zero install 0x3FFF, always set CD input volume to
+ * 0x3FFF (or the 0x1DBA value), SPUCNT = 0xC001 (SPU on, unmuted, CD
+ * audio enable), and the CD controller ATV matrix to normal stereo. */
+static void cd_initvol(void)
+{
+	uint16_t v0;
+
+	if (spu_read_reg16(0x1F801DB8) != 0) {
+		v0 = 0x3FFF;
+	} else {
+		v0 = spu_read_reg16(0x1F801DBA);
+		if (v0 == 0) {
+			v0 = 0x3FFF;
+			spu_write_reg16(0x1F801D80, v0); /* main vol L */
+			spu_write_reg16(0x1F801D82, v0); /* main vol R */
+		}
+	}
+	spu_write_reg16(0x1F801DB0, v0);	   /* CD audio vol L */
+	spu_write_reg16(0x1F801DB2, v0);	   /* CD audio vol R */
+	spu_write_reg16(0x1F801DAA, 0xC001);	   /* SPUCNT */
+	cd_atv[0] = 0x80;
+	cd_atv[1] = 0x00;
+	cd_atv[2] = 0x80;
+	cd_atv[3] = 0x00;
+}
+
 /* ---------------------------------------------------------------- */
 /* helpers                                                           */
 
@@ -74,13 +112,18 @@ int CdInit(void)
 	memcpy(volid, pvd + 40, 32);
 	volid[32] = 0;
 	emscripten_console_logf("cd: disc attached, volume id '%s'", volid);
+	/* glabel CdInit -> CdReset(1) -> CD_init + CD_initvol */
+	cd_initvol();
 	return 1;
 }
 
 int CdReset(int mode)
 {
-	(void)mode;
-	return 0;
+	/* asm: mode 2 re-inits interrupts only; mode 1 additionally
+	 * runs CD_initvol after a successful CD_init. */
+	if (mode == 1)
+		cd_initvol();
+	return 1;
 }
 
 int CdSetDebug(int level)
@@ -236,7 +279,8 @@ int CdReadSync(int mode, u_char *result)
 
 int CdRead2(long mode)
 {
-	(void)mode;
+	if (mode & CdlModeStream)
+		st_stream_arm();
 	return 1;
 }
 
@@ -284,7 +328,11 @@ int CdPlay(int mode, int *track, int offset)
 
 int CdMix(CdlATV *vol)
 {
-	(void)vol;
+	/* CD controller ATV registers: scale the DSP->SPU output. */
+	cd_atv[0] = vol->val0;
+	cd_atv[1] = vol->val1;
+	cd_atv[2] = vol->val2;
+	cd_atv[3] = vol->val3;
 	return 0;
 }
 
@@ -348,6 +396,8 @@ static int ident_match(const uint8_t *ident, int ilen, const char *name)
 
 		if (c == ';')
 			c = 0;
+		if (n == ';')
+			n = 0;
 		if (n == 0 && c == 0)
 			return 1;
 		if (n == 0 || c == 0)
@@ -355,7 +405,7 @@ static int ident_match(const uint8_t *ident, int ilen, const char *name)
 		if (to_lower(c) != to_lower(n))
 			return 0;
 	}
-	return name[ilen] == 0;
+	return name[ilen] == 0 || name[ilen] == ';';
 }
 
 static int find_in_dir(uint32_t extent, uint32_t size, const char *name,
@@ -445,8 +495,10 @@ CdlFILE *CdSearchFile(CdlFILE *fp, char *name)
 		if (component[0] == 0)
 			return NULL;
 		if (!find_in_dir(extent, size, component, &extent, &size,
-				 &isdir, fp->name))
+				 &isdir, fp->name)) {
+			emscripten_console_logf("cd: search '%s' miss '%s'", name, component);
 			return NULL;
+		}
 		if (slash == NULL)
 			break;
 		if (!isdir)
@@ -456,24 +508,301 @@ CdlFILE *CdSearchFile(CdlFILE *fp, char *name)
 
 	CdIntToPos((int)extent, &fp->pos);
 	fp->size = size;
+	emscripten_console_logf("cd: search '%s' -> lba=%u size=%u", name, extent, size);
 	return fp;
 }
 
 /* ---------------------------------------------------------------- */
-/* streaming (movies are a later segment - stubs that can't hang)    */
+/* libds streaming                                                    */
+/*                                                                    */
+/* Faithful to the retail model (asm/us/main/psyq/libcd.s): the ring  */
+/* is `ring_size` slots; each slot is a 32-byte STR header followed   */
+/* by a 2016-byte chunk payload (headers occupy the first             */
+/* ring_size*32 bytes, data starts at ring + ring_size*32).           */
+/* A movie frame occupies nSectors consecutive slots; the frame's     */
+/* first slot's header id is set to StCOMPLETE when the last sector   */
+/* arrives. StGetNext locks it (StLOCK) and returns the contiguous    */
+/* assembled bitstream.                                               */
+/*                                                                    */
+/* Sector delivery is clocked by the emulated 2x CD rate: 150        */
+/* sectors/second -> 2.5 per 60 Hz VSync, plus an initial burst so    */
+/* the ring pre-fills like the real drive's sector buffer.           */
+/* XA audio sectors (submode bit2) decode into the SPU CD input.     */
+
+static u_long *st_ring;
+static u_long st_ringsize;
+static int st_widx;		/* producer slot index (StRingIdx1) */
+static int st_ridx;		/* consumer slot index (StRingIdx3) */
+static int st_frame_start;	/* slot of the assembling frame */
+
+static int st_streaming;	/* CdRead2 armed in stream mode */
+static uint32_t st_lba;		/* next sector to deliver */
+static uint32_t st_delivered;	/* sectors delivered since arm */
+static uint32_t st_vsync0;	/* vsync count at arm */
+static uint32_t st_next_frameid;
+
+static CdlLOC st_prev_loc;
+
+static uint8_t st_secbuf[2352 * 24];
+
+static u_char *st_slot_hdr(int i) { return (u_char *)st_ring + i * 32; }
+static u_char *st_slot_data(int i)
+{
+	return (u_char *)st_ring + st_ringsize * 32 + i * 2016;
+}
+
+/* XA ADPCM decode (37800/18900 Hz stereo or mono, 4/8-bit) -> stereo
+ * 44100 Hz pairs pushed to the SPU CD input. */
+static int16_t xa_prev[4];
+static double xa_frac;
+
+/* apply the CD controller ATV matrix then hand off to the SPU CD input */
+static void xa_push(int16_t *stereo, int frames)
+{
+	for (int i = 0; i < frames; i++) {
+		int l = stereo[i * 2], r = stereo[i * 2 + 1];
+		int lo = (l * cd_atv[0] + r * cd_atv[1]) >> 7;
+		int ro = (l * cd_atv[2] + r * cd_atv[3]) >> 7;
+		if (lo > 32767)
+			lo = 32767;
+		else if (lo < -32768)
+			lo = -32768;
+		if (ro > 32767)
+			ro = 32767;
+		else if (ro < -32768)
+			ro = -32768;
+		stereo[i * 2] = (int16_t)lo;
+		stereo[i * 2 + 1] = (int16_t)ro;
+	}
+	spu_cd_input(stereo, frames);
+}
+
+static void xa_decode_sector(const uint8_t *sec)
+{
+	static const int8_t filt_pos[16] = {
+		0, 60, 115, 98, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+	};
+	static const int8_t filt_neg[16] = {
+		0, 0, -52, -55, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0
+	};
+	const uint8_t *chunk = sec + 24;
+	int stereo = sec[19] & 1;
+	int eight_bit = sec[19] & 0x10;
+	static int16_t pcm[2352 * 2];
+	int n = 0;
+	(void)eight_bit;
+
+	for (int grp = 0; grp < 18; grp++) {
+		const uint8_t *hdr = chunk + 4;
+		const uint8_t *wrd = chunk + 16;
+		for (int blk = 0; blk < 8; blk++) {
+			uint8_t param = hdr[blk];
+			int shift = param & 0x0F;
+			int filter = param >> 4;
+			int32_t *prev = (int32_t *)&xa_prev[(blk & 1) * 2];
+			if (shift > 12)
+				shift = 9;
+			for (int wd = 0; wd < 28; wd++) {
+				uint32_t w;
+				int nib, smp, out;
+				memcpy(&w, wrd + wd * 4, 4);
+				nib = (int)(w >> (blk * 4)) & 0x0F;
+				smp = (int16_t)(nib << 12) >> shift;
+				out = smp + ((prev[0] * filt_pos[filter]) >> 6) +
+				      ((prev[1] * filt_neg[filter]) >> 6);
+				if (out > 32767)
+					out = 32767;
+				else if (out < -32768)
+					out = -32768;
+				prev[1] = prev[0];
+				prev[0] = out;
+				if (stereo) {
+					/* 8 blocks alternate L,R: 112
+					 * stereo frames per 128B unit */
+					int ch = blk & 1;
+					int fr = (blk / 2) * 28 + wd;
+					pcm[(grp * 112 + fr) * 2 + ch] =
+						(int16_t)out;
+				} else {
+					pcm[grp * 224 + blk * 28 + wd] =
+						(int16_t)out;
+				}
+			}
+		}
+		chunk += 128;
+	}
+
+	if (stereo) {
+		/* 2016 stereo frames @37800 -> resample to 44100 (7:6) */
+		static int16_t last_l, last_r;
+		static double phase;
+		double step = 37800.0 / 44100.0;
+		int16_t outp[2400 * 2];
+		int o = 0;
+		(void)xa_frac;
+		while (phase < 2016.0 && o < 2398) {
+			int i0 = (int)phase;
+			int i1 = i0 + 1 < 2016 ? i0 + 1 : i0;
+			double f = phase - i0;
+			int16_t l = (int16_t)((1.0 - f) *
+						 pcm[i0 * 2] +
+					     f * pcm[i1 * 2]);
+			int16_t r = (int16_t)((1.0 - f) *
+						 pcm[i0 * 2 + 1] +
+					     f * pcm[i1 * 2 + 1]);
+			outp[o * 2] = l;
+			outp[o * 2 + 1] = r;
+			o++;
+			phase += step;
+		}
+		phase -= 2016.0;
+		(void)last_l;
+		(void)last_r;
+		xa_push(outp, o);
+		n = o;
+	} else {
+		/* 4032 mono samples @37800 -> 44100, duplicate to stereo */
+		static double phase_m;
+		double step = 37800.0 / 44100.0;
+		int16_t outp[4800 * 2];
+		int o = 0;
+		while (phase_m < 4032.0 && o < 4798) {
+			int i0 = (int)phase_m;
+			int i1 = i0 + 1 < 4032 ? i0 + 1 : i0;
+			double f = phase_m - i0;
+			int16_t s = (int16_t)((1.0 - f) * pcm[i0] +
+					     f * pcm[i1]);
+			outp[o * 2] = s;
+			outp[o * 2 + 1] = s;
+			o++;
+			phase_m += step;
+		}
+		phase_m -= 4032.0;
+		xa_push(outp, o);
+		n = o;
+	}
+	(void)n;
+}
+
+/* pump `budget` more sectors through the stream */
+static void st_pump(uint32_t budget)
+{
+	uint32_t batch, got = 0;
+
+	if (!st_streaming || st_ring == NULL)
+		return;
+	while (budget > 0) {
+		batch = budget > 24 ? 24 : budget;
+		if (disc_read_raw(st_lba, batch, st_secbuf) != 0) {
+			st_streaming = 0;
+			return;
+		}
+		for (uint32_t i = 0; i < batch; i++) {
+			const uint8_t *sec = st_secbuf + i * 2352;
+			uint8_t submode = sec[18];
+			uint16_t id, sc, ns;
+
+			st_lba++;
+			st_delivered++;
+			if (submode & 0x04) {
+				xa_decode_sector(sec);
+				continue;
+			}
+			id = *(const uint16_t *)(sec + 24);
+			if (id != 0x0160)
+				continue;
+			sc = *(const uint16_t *)(sec + 28);
+			ns = *(const uint16_t *)(sec + 30);
+
+			if (sc == 0) {
+				/* new frame: needs ns contiguous slots */
+				uint32_t used = (uint32_t)(
+					(st_widx - st_ridx + (int)st_ringsize) %
+					(int)st_ringsize);
+				if (used + ns + 1 >= st_ringsize)
+					return; /* ring full - consumer will drain */
+				if ((uint32_t)st_widx + ns > st_ringsize) {
+					/* wrap: REWIND marker */
+					*(uint16_t *)st_slot_hdr(st_widx) =
+						StREWIND;
+					st_widx = 0;
+				}
+				st_frame_start = st_widx;
+				st_next_frameid =
+					*(const uint32_t *)(sec + 32);
+			}
+			/* ring space for this slot? */
+			{
+				uint32_t used = (uint32_t)(
+					(st_widx - st_ridx + (int)st_ringsize) %
+					(int)st_ringsize);
+				if (used + 1 >= st_ringsize)
+					return;
+			}
+			memcpy(st_slot_hdr(st_widx), sec + 24, 32);
+			memcpy(st_slot_data(st_widx), sec + 56, 2016);
+			if (sc == ns - 1)
+				*(uint16_t *)st_slot_hdr(st_frame_start) =
+					StCOMPLETE;
+			st_widx = (st_widx + 1) % (int)st_ringsize;
+			st_prev_loc = *(CdlLOC *)(sec + 24 + 28);
+			StCdIntrFlag[0] = 1;
+		}
+		got += batch;
+		budget -= batch;
+	}
+	(void)got;
+}
+
+/* sector budget: 2.5 per vsync since arm, +ring_size initial burst */
+static uint32_t st_budget(void)
+{
+	uint32_t elapsed = web_vsync_count - st_vsync0;
+	uint32_t allowed = st_ringsize + (elapsed * 5) / 2;
+	if (st_delivered >= allowed)
+		return 0;
+	return allowed - st_delivered;
+}
+
+static void st_stream_arm(void)
+{
+	st_lba = cur_lba;
+	st_delivered = 0;
+	st_vsync0 = web_vsync_count;
+	st_widx = st_ridx = 0;
+	st_frame_start = 0;
+	xa_frac = 0;
+	memset((unsigned char *)xa_prev, 0, sizeof xa_prev);
+	st_streaming = 1;
+	emscripten_console_logf("str: arm lba=%u vsync=%u", st_lba,
+				web_vsync_count);
+}
 
 void StSetRing(u_long *ring_addr, u_long ring_size)
 {
-	(void)ring_addr;
-	(void)ring_size;
+	st_ring = ring_addr;
+	st_ringsize = ring_size;
+	StClearRing();
 }
 
 void StClearRing(void)
 {
+	st_widx = st_ridx = 0;
+	st_frame_start = 0;
+	st_next_frameid = 0;
+	if (st_ring != NULL)
+		memset((unsigned char *)st_ring, 0, (size_t)st_ringsize * 32);
+	StCdIntrFlag[0] = 0;
 }
 
 void StUnSetRing(void)
 {
+	emscripten_console_logf("str: unset lba=%u del=%u vsync=%u fid=%u",
+				st_lba, st_delivered, web_vsync_count,
+				st_next_frameid);
+	st_streaming = 0;
+	st_ring = NULL;
+	StCdIntrFlag[0] = 0;
 }
 
 void StSetStream(u_long mode, u_long start_frame, u_long end_frame,
@@ -497,29 +826,33 @@ void StSetEmulate(u_long *addr, u_long mode, u_long start_frame,
 	(void)func2;
 }
 
-/*
- * A fabricated stream frame: StGetNext returns a header whose
- * frameCount is past the end of every movie's frame table, so
- * MOV_readFrame sets MOVIE_COMPLETED and the play loop exits instead
- * of spinning on the stub forever.
- */
 u_long StGetNext(u_long **addr, u_long **header)
 {
-	static u_long fake_bs[512];
-	static StHEADER fake_header = {
-		.id = 0x0160,
-		.type = 0x8001,
-		.secCount = 1,
-		.nSectors = 1,
-		.frameCount = 0x7FFFFFFF,
-		.frameSize = 0x800,
-		.width = 320,
-		.height = 240,
-	};
+	int spins = 0;
 
-	*addr = fake_bs;
-	*header = (u_long *)&fake_header;
-	return 0;
+	for (;;) {
+		u_short id = *(u_short *)st_slot_hdr(st_ridx);
+		if (id == StREWIND) {
+			st_ridx = 0;
+			continue;
+		}
+		if (id == StCOMPLETE) {
+			*(u_short *)st_slot_hdr(st_ridx) = StLOCK;
+			*addr = (u_long *)st_slot_data(st_ridx);
+			*header = (u_long *)st_slot_hdr(st_ridx);
+			return 0;
+		}
+		{
+			uint32_t b = st_budget();
+			if (b > 0) {
+				st_pump(b);
+				continue;
+			}
+			if (++spins > 2000)
+				return 1;
+			VSync(0); /* wait for the next sector burst */
+		}
+	}
 }
 
 u_long StGetNextS(u_long **addr, u_long **header)
@@ -551,12 +884,20 @@ void StSetMask(u_long mask, u_long start, u_long end)
 
 void StCdInterrupt(void)
 {
+	/* called from MOV_onSliceDecoded when StCdIntrFlag was set;
+	 * top up the ring within the current budget */
+	uint32_t b = st_budget();
+	if (b > 0)
+		st_pump(b > 6 ? 6 : b);
+	StCdIntrFlag[0] = 0;
 }
 
 int StGetBackloc(CdlLOC *loc)
 {
-	(void)loc;
-	return 0;
+	if (!st_streaming)
+		return -1;
+	*loc = st_prev_loc;
+	return (int)st_next_frameid;
 }
 
 int StSetChannel(u_long channel)
@@ -567,6 +908,22 @@ int StSetChannel(u_long channel)
 
 u_long StFreeRing(u_long *base)
 {
-	(void)base;
+	uint8_t *data_base = (u_char *)st_ring + st_ringsize * 32;
+	long idx;
+	uint16_t ns, i;
+
+	if (st_ring == NULL)
+		return 0;
+	idx = ((u_char *)base - data_base) / 2016;
+	if (idx < 0 || idx >= (long)st_ringsize)
+		return 0;
+	if (*(u_short *)st_slot_hdr((int)idx) != StLOCK)
+		return 0;
+	ns = *(const uint16_t *)(st_slot_hdr((int)idx) + 6);
+	if ((int)ns > 0) {
+		for (i = 0; i < ns; i++)
+			*(u_short *)st_slot_hdr((int)idx + i * 1) = StFREE;
+	}
+	st_ridx = ((int)idx + ns) % (int)st_ringsize;
 	return 0;
 }

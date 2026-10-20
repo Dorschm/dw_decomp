@@ -11,7 +11,7 @@
 #include <emscripten/console.h>
 
 uint8_t spu_ram[SPU_RAM_SIZE];
-unsigned long spu_kon_events;
+
 unsigned long spu_samples_rendered;
 
 /* ---- register file ---- */
@@ -33,6 +33,24 @@ enum {
 	R_MVXL = 0xDC, R_MVXR,
 	R_REVBASE = 0xE0, /* 0x1C0..0x1FF */
 };
+
+/* ---- CD audio input (XA-ADPCM from streamed sectors) ---- */
+
+#define CD_BUF_FRAMES (44100 * 4)
+static int16_t cd_buf[CD_BUF_FRAMES * 2];
+static volatile int cd_w, cd_r;
+
+void spu_cd_input(const int16_t *stereo, int frames)
+{
+	for (int i = 0; i < frames; i++) {
+		int next = (cd_w + 1) % CD_BUF_FRAMES;
+		if (next == cd_r)
+			break; /* full: drop (underrun beats overwrite) */
+		cd_buf[cd_w * 2] = stereo[i * 2];
+		cd_buf[cd_w * 2 + 1] = stereo[i * 2 + 1];
+		cd_w = next;
+	}
+}
 
 /* ---- voices ---- */
 
@@ -504,40 +522,9 @@ void spu_render(int16_t *out, int frames)
 					decode_block(v);
 					regs[R_ENDXL + (vi >= 16)] &=
 						~(1u << (vi & 15));
-					spu_kon_events++;
-					if (spu_kon_events <= 24) {
-						emscripten_console_logf(
-						"spu: KON v%d start=%x "
-						"pitch=%x adsr=%04x/%04x\n",
-						vi, v->addr,
-						regs[vi * 8 + R_PITCH],
-						regs[vi * 8 + R_ADSR1],
-						regs[vi * 8 + R_ADSR2]);
-						if (spu_kon_events <= 4) {
-							emscripten_console_logf(
-							"spu: blk %02x %02x %02x %02x "
-							"%02x %02x %02x %02x dec %d %d "
-							"%d %d %d %d\n",
-							spu_ram[v->addr],
-							spu_ram[v->addr+1],
-							spu_ram[v->addr+2],
-							spu_ram[v->addr+3],
-							spu_ram[v->addr+4],
-							spu_ram[v->addr+5],
-							spu_ram[v->addr+6],
-							spu_ram[v->addr+7],
-							v->buf[4], v->buf[8],
-							v->buf[12], v->buf[16],
-							v->buf[20], v->buf[24]);
-						}
-					}
 				}
-				if (koff_pending & m) {
+				if (koff_pending & m)
 					voice[vi].state = ADSR_RELEASE;
-					if (spu_kon_events <= 24)
-						emscripten_console_logf(
-						"spu: KOFF v%d\n", vi);
-				}
 			}
 			kon_pending = koff_pending = 0;
 		}
@@ -611,6 +598,14 @@ void spu_render(int16_t *out, int frames)
 
 		mix_l = mix_l * (int16_t)regs[R_MVOLL] >> 15;
 		mix_r = mix_r * (int16_t)regs[R_MVOLR] >> 15;
+		/* CD audio input (XA stream) through its own volume regs */
+		if (cd_r != cd_w) {
+			mix_l += ((int32_t)cd_buf[cd_r * 2] *
+				  (int16_t)regs[R_CDVOLL]) >> 15;
+			mix_r += ((int32_t)cd_buf[cd_r * 2 + 1] *
+				  (int16_t)regs[R_CDVOLR]) >> 15;
+			cd_r = (cd_r + 1) % CD_BUF_FRAMES;
+		}
 		if (mix_l > 32767)
 			mix_l = 32767;
 		else if (mix_l < -32768)

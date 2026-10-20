@@ -281,74 +281,20 @@ int ClearImage2(RECT *rect, u_char r, u_char g, u_char b)
 	return 0;
 }
 
-extern unsigned long web_vsync_count;
-extern uint8_t PSX_RAM[];
-
-static const char *src_class(const void *p, uintptr_t *off)
-{
-	uintptr_t v = (uintptr_t)p - (uintptr_t)PSX_RAM;
-	*off = v;
-	return v < 0x200000 ? "PSX_RAM" : "native";
-}
-
 int LoadImage(RECT *rect, u_long *p)
 {
-	static int logged;
-	static int glogged;
-	/* glyph-cell upload into the text page: 3 words x 11 rows of 4bpp */
-	if (rect->w == 3 && rect->h == 11 && rect->x >= 704 &&
-	    rect->x < 768 && rect->y >= 256 && rect->y < 512 &&
-	    glogged < 40) {
-		const uint8_t *b = (const uint8_t *)p;
-		int r, c;
-		glogged++;
-		printf("glyph->%d,%d vsync=%ld\n", rect->x * 4, rect->y,
-		       (long)web_vsync_count);
-		for (r = 0; r < 11; r++) {
-			char ln[13];
-			for (c = 0; c < 6; c++) {
-				uint8_t v = b[r * 6 + c];
-				ln[c * 2] = " #"[!!(v & 0x0f)];
-				ln[c * 2 + 1] = " #"[!!(v & 0xf0)];
-			}
-			ln[12] = 0;
-			printf("glyph %s\n", ln);
-		}
-	}
-	if (web_vsync_count >= 2400 && logged < 300) {
-		uintptr_t off;
-		const char *cl = src_class(p, &off);
-		const uint32_t *w = (const uint32_t *)p;
-		logged++;
-		printf("gpu: LoadImage %d,%d %dx%d %s+0x%lx w=%08lx %08lx %08lx %08lx %08lx %08lx %08lx %08lx\n",
-		       rect->x, rect->y, rect->w, rect->h, cl,
-		       (unsigned long)off, (unsigned long)w[0],
-		       (unsigned long)w[1], (unsigned long)w[2],
-		       (unsigned long)w[3], (unsigned long)w[4],
-		       (unsigned long)w[5], (unsigned long)w[6],
-		       (unsigned long)w[7]);
-	}
 	gpu_load_image(rect, (const uint32_t *)p);
 	return 0;
 }
 
 int StoreImage(RECT *rect, u_long *p)
 {
-	if (web_vsync_count >= 2400) {
-		uintptr_t off;
-		printf("gpu: StoreImage %d,%d %dx%d %s+0x%lx\n", rect->x,
-		       rect->y, rect->w, rect->h, src_class(p, &off),
-		       (unsigned long)off);
-	}
 	gpu_store_image(rect, (uint32_t *)p);
 	return 0;
 }
 
 int MoveImage(RECT *rect, int x, int y)
 {
-	if (web_vsync_count >= 2400)
-		printf("gpu: MoveImage %d,%d %dx%d -> %d,%d\n", rect->x,
-		       rect->y, rect->w, rect->h, x, y);
 	gpu_move_image(rect, x, y);
 	return 0;
 }

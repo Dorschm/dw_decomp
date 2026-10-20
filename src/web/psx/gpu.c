@@ -210,14 +210,18 @@ static void fill_tri(const Vtx *tv, int gouraud, int textured, int abr,
 
 		for (y = y0; y <= y1; y++) {
 			for (x = x0; x <= x1; x++) {
+				/* unbiased edge functions feed the
+				 * attribute interpolation (they sum to
+				 * area); the top-left bias only affects
+				 * coverage */
 				long e0 = (long)dx0 * (y - v[1].y) -
-					  (long)dy0 * (x - v[1].x) + b0;
+					  (long)dy0 * (x - v[1].x);
 				long e1 = (long)dx1 * (y - v[2].y) -
-					  (long)dy1 * (x - v[2].x) + b1;
+					  (long)dy1 * (x - v[2].x);
 				long e2 = (long)dx2 * (y - v[0].y) -
-					  (long)dy2 * (x - v[0].x) + b2;
+					  (long)dy2 * (x - v[0].x);
 				int r, g, b, stp = 1, mask = 0, blend = abr;
-				if (e0 < 0 || e1 < 0 || e2 < 0)
+				if (e0 + b0 < 0 || e1 + b1 < 0 || e2 + b2 < 0)
 					continue;
 				if (gouraud) {
 					r = (int)((e0 * v[0].r + e1 * v[1].r +
