@@ -111,6 +111,27 @@ void web_audio_capture(const char *path, int seconds)
 					seconds, path);
 }
 
+/* harness hook: arm a capture that starts at the first sequencer
+ * note-on (libsnd calls web_audio_seq_note), so captures of the BGM
+ * line up across runs regardless of wall-clock timing */
+static char seq_cap_path[256];
+static int seq_cap_secs;
+
+EMSCRIPTEN_KEEPALIVE
+void web_audio_capture_on_seq(const char *path, int seconds)
+{
+	strncpy(seq_cap_path, path, sizeof(seq_cap_path) - 1);
+	seq_cap_secs = seconds;
+}
+
+void web_audio_seq_note(void)
+{
+	if (seq_cap_secs > 0) {
+		web_audio_capture(seq_cap_path, seq_cap_secs);
+		seq_cap_secs = 0;
+	}
+}
+
 void web_audio_pump(void)
 {
 	static double tick_pos;

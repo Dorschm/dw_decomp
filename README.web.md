@@ -60,7 +60,7 @@ DuckStation/PCSX); **Import save** writes one back.
 | psx  | `psx/libgs.c` | Gs 2D/3D objects, cameras, ordering tables, TMD primitive stream |
 | psx  | `psx/libcd.c`, `libds.c` | CD-ROM: raw/user-sector reads, file table, XA/STR sector streaming ring (`St*`), XA-ADPCM audio |
 | psx  | `psx/libpress.c` | MDEC/VLC STR frame decode (`DecDCT*`) |
-| psx  | `psx/spu.c`, `libsnd.c`, `libspu.c` | 24-voice ADPCM synth, envelopes, reverb, SEQ/VAB sequencer, CD-audio mix |
+| psx  | `psx/mixer.c`, `libsnd.c`, `libspu.c` | native mixer (no SPU emulation): VAG ADPCM decoded once to cached PCM, 24 software voices with ADSR, libspu reverb presets on a private delay line, CD-audio mix; libsnd SEQ/VAB sequencer |
 | psx  | `psx/libetc.c`, `libapi.c`, `libmcrd.c`, `libc.c` | pad/VSync (60 Hz `emscripten_sleep`), kernel events, memory-card API, libc/PsyQ helpers |
 | psx  | `psx/call_fixups.c` | per-TU declaration-mismatch wrappers + debug probes (`web_debug_state`, `web_entity_dump`, …) |
 | psx  | `psx/data_shim.c` | 2 MiB emulated PS1 RAM (`PSX_RAM`) for the game's hard-coded `0x80xxxxxx` addresses |
@@ -89,8 +89,9 @@ TUs, so the extern symbol tables cover all mutable overlay state.
   with correct depth ordering, drop shadows, HUD, menus, name entry.
 - STR FMV playback (opening + attract loop): libds sector streaming,
   MDEC decode, 24-bit display, XA stereo audio.
-- Sound: VAB SFX, sequenced BGM, reverb; verified against a reference
-  Python ADPCM decoder sample-for-sample.
+- Sound: VAB SFX, sequenced BGM, reverb. ADPCM decode checked against
+  a reference Python decoder (`make PLATFORM=web TOOLCHAIN=emcc
+  mixer_test`, also checks the reverb tail decays).
 - Memory card: format, save, restart-and-continue round-trip.
 - `make TOOLCHAIN=gcc` output remains byte-identical to retail
   extraction (sha1-gated); the only game-source edit for the port is a
@@ -103,7 +104,9 @@ TUs, so the extern symbol tables cover all mutable overlay state.
   (`loadMapSounds2`, `isSoundLoaded`) from conflicting declarations in
   the game sources; auto-adapted, harmless.
 - Node harness only: no audio output device (SDL headless), captures go
-  through `web_audio_capture` to WAV.
+  through `web_audio_capture` to WAV; `web_audio_capture_on_seq(path,
+  secs)` arms a capture that starts at the first sequencer note-on so
+  BGM captures line up across runs.
 - Untested/less-travelled paths: fishing, tournaments/VS, evolution,
   endgame overlays — they compile and load but have not all been driven
   end-to-end.

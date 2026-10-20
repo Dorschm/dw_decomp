@@ -75,6 +75,7 @@ typedef struct {
 } SvmVoice;
 
 static SvmVoice _svm_voice[24];
+extern void web_audio_seq_note(void);
 static unsigned long _spu_keystat_ext;
 
 /* _svm_cur: current-tone context filled by VSetUp/SelectToneAndVag */
@@ -420,6 +421,7 @@ static short _SsVmKeyOn(short packed, short vabId, short prog,
                         seq_tick_count, packed, voice, prog, sel[i],
                         note, vel, p, (unsigned)vag_addr);
                 }
+                web_audio_seq_note();
                 _SsVmKeyOnNow(1, p);
             }
         }
