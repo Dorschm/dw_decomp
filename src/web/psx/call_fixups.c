@@ -509,3 +509,27 @@ void web_entity_dump(void)
 		}
 	}
 }
+
+/* debug warp for the harness: same path as stepping on a warp tile
+ * (tamer.c tickTamerTile -> state 5 -> tamerTickChangeMap). Only safe
+ * while the tamer is in free-roam (TAMER_STATE 0). */
+void web_debug_warp(int map, int exit, int force)
+{
+	extern uint8_t TARGET_MAP, CURRENT_EXIT;
+	extern int8_t TAMER_STATE;
+	extern void tamerSetState(int32_t state);
+	extern void unsetCameraFollowPlayer(void);
+	extern void stopGameTime(void);
+
+	if (TAMER_STATE != 0 && !force) {
+		emscripten_console_logf("warp: refused, tamer state %d",
+					(int)TAMER_STATE);
+		return;
+	}
+	TARGET_MAP = (uint8_t)map;
+	CURRENT_EXIT = (uint8_t)exit;
+	tamerSetState(5);
+	unsetCameraFollowPlayer();
+	stopGameTime();
+	emscripten_console_logf("warp: -> map %d exit %d", map, exit);
+}
