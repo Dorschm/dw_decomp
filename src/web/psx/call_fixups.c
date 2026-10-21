@@ -594,3 +594,45 @@ int16_t *web_net_project(int32_t x, int32_t y, int32_t z)
 	getEntityScreenPos((int32_t)(uintptr_t)ent, 1, (int32_t)(uintptr_t)out);
 	return out;
 }
+
+/* ---- asset extraction hooks (tools/extract_maps.js) -----------------
+ * MapTiles (include/dw/map.h): tiles[35] of 20 bytes {imagePtr(4)
+ * tileId posX posY texU texV tpage clut(+16)}, objects[188] of 34 bytes,
+ * then cameraX/cameraY (int16) and width/height (int8) at +7096/+7097. */
+extern char MAP_TILE_DATA[];
+extern uint16_t gpu_vram[][1024];
+
+/* out[0]=width, out[1]=height (tiles of 128x128), out[2]=tile count */
+int32_t *web_map_info(void)
+{
+	static int32_t out[3];
+
+	out[0] = (int8_t)MAP_TILE_DATA[7096];
+	out[1] = (int8_t)MAP_TILE_DATA[7097];
+	out[2] = out[0] * out[1];
+	return out;
+}
+
+/* 128x128 RGBA of tile idx (8bpp indices through its CLUT in VRAM);
+ * NULL if the tile has no image */
+uint8_t *web_map_tile_rgba(int32_t idx)
+{
+	static uint8_t buf[128 * 128 * 4];
+	uint8_t *t = (uint8_t *)MAP_TILE_DATA + idx * 20;
+	uint8_t *img = *(uint8_t **)t;
+	int16_t clut = *(int16_t *)(t + 16);
+	int cx = (clut & 0x3f) * 16, cy = (clut >> 6) & 0x1ff;
+	int i;
+
+	if (img == NULL || idx < 0 || idx >= 35)
+		return NULL;
+	for (i = 0; i < 128 * 128; i++) {
+		uint16_t p = gpu_vram[cy][cx + img[i]];
+
+		buf[i * 4 + 0] = (uint8_t)((p & 31) << 3);
+		buf[i * 4 + 1] = (uint8_t)(((p >> 5) & 31) << 3);
+		buf[i * 4 + 2] = (uint8_t)(((p >> 10) & 31) << 3);
+		buf[i * 4 + 3] = 255;
+	}
+	return buf;
+}

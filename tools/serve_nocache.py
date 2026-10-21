@@ -18,6 +18,20 @@ class NoCache(http.server.SimpleHTTPRequestHandler):
     def do_POST(self):
         """POST /__shot/<name>.png -> <root>/dw_decomp/.tmp_test/shots/
         (screenshots from tools/web_drive.js)"""
+        if self.path.startswith('/__asset/'):
+            # POST /__asset/<rel/path> -> <root>/dw_remake/client/assets/<rel/path>
+            rel = os.path.normpath(self.path[9:].split('?')[0]).replace(chr(92), '/')
+            if rel.startswith('..') or rel.startswith('/') or ':' in rel:
+                self.send_error(400)
+                return
+            data = self.rfile.read(int(self.headers.get('Content-Length', 0)))
+            dst = os.path.join(self.directory, 'dw_remake', 'client', 'assets', rel)
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            with open(dst, 'wb') as f:
+                f.write(data)
+            self.send_response(204)
+            self.end_headers()
+            return
         if not self.path.startswith('/__shot/'):
             self.send_error(404)
             return
