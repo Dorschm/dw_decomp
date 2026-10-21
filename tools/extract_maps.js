@@ -32,6 +32,21 @@
       await post(`maps/${m}/tile_${i}.png`, blob);
       tiles.push(`tile_${i}.png`);
     }
+    // navigation: 100x100 collision grid (bit 0x80 = blocked, other non-zero =
+    // trigger/warp id) + world->map-pixel samples on the ground plane (y=0).
+    // mapPx = projected sx + 160 + cameraX (verified camera-invariant), pixel
+    // origin = top-left of the map image. A homography is fitted from these
+    // samples by the remake's tools/pack_assets.py.
+    const cp = Module._web_map_collision();
+    await post(`maps/${m}/coll.bin`, new Blob([Module.HEAPU8.slice(cp, cp + 10000)]));
+    const cm = Module._web_map_camera() >> 2;
+    const cam = [Module.HEAP32[cm], Module.HEAP32[cm + 1]];
+    const pts = [];
+    for (let z = -2000; z <= 2000; z += 1000) for (let x = -2000; x <= 2000; x += 1000) {
+      const P = Module._web_net_project(x, 0, z) >> 1;
+      pts.push([x, z, Module.HEAP16[P] + 160 + cam[0], Module.HEAP16[P + 1] + 120 + cam[1]]);
+    }
+    await post(`maps/${m}/nav.json`, new Blob([JSON.stringify({ w: w * 128, h: h * 128, pts, warps: Array.from(Module.HEAP16.subarray(Module._web_map_warps() >> 1, (Module._web_map_warps() >> 1) + 60)) })]));
     EX.index.maps[m] = { w, h, tiles };
     return true;
   }

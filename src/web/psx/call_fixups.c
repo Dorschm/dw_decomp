@@ -636,3 +636,36 @@ uint8_t *web_map_tile_rgba(int32_t idx)
 	}
 	return buf;
 }
+
+/* ---- collision / camera dump for the remake (tools/extract_maps.js) ---- */
+extern uint8_t MAP_COLLISION_DATA[];
+extern int32_t DRAWING_OFFSET_X, DRAWING_OFFSET_Y;
+
+/* 100x100 bytes, index tx + tz * 100; bit 0x80 = blocked, other non-zero
+ * values are tile triggers (warps etc.); world x = (tx-50)*100.., z = (50-tz)*100.. */
+uint8_t *web_map_collision(void)
+{
+	return MAP_COLLISION_DATA;
+}
+
+/* out[0]=cameraX out[1]=cameraY out[2]=DRAWING_OFFSET_X out[3]=DRAWING_OFFSET_Y */
+int32_t *web_map_camera(void)
+{
+	static int32_t out[4];
+
+	out[0] = *(int16_t *)(MAP_TILE_DATA + 7092);
+	out[1] = *(int16_t *)(MAP_TILE_DATA + 7094);
+	out[2] = DRAWING_OFFSET_X;
+	out[3] = DRAWING_OFFSET_Y;
+	return out;
+}
+
+/* per-map exit table (MapWarps in battle_tick.c): int16 spawnX[10],
+ * spawnY[10], spawnZ[10], rotation[10], targetMap[10], targetExit[10].
+ * Trigger cells 110..119 in the collision grid warp through entry (n-110). */
+extern int16_t MAP_WARPS[];
+
+int16_t *web_map_warps(void)
+{
+	return MAP_WARPS;
+}
