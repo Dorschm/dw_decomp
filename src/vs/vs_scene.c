@@ -1553,6 +1553,10 @@ int32_t VS_getFirstSpecialMove(int32_t index)
 			}
 		}
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 void VS_playVersusIntroSequence(void)

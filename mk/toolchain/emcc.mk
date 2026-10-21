@@ -7,6 +7,13 @@ CC := emcc
 # by clang), signed overflow wraps, and objects may be type-punned.
 UB_FLAGS := -fno-delete-null-pointer-checks -fwrapv -fno-strict-aliasing
 CFLAGS := -O2 -Wall -std=c99 -sUSE_SDL=2 $(UB_FLAGS)
+# make PLATFORM=web TOOLCHAIN=emcc WEB_UBSAN=1 web (wipe build/us/web/emcc/src
+# first and after): UBSan runtime reports array overruns / bad object sizes /
+# null derefs with file:line in the browser console, and keeps running.
+ifdef WEB_UBSAN
+UBSAN_CHECKS := array-bounds,object-size,null
+CFLAGS += -fsanitize=$(UBSAN_CHECKS) -fsanitize-recover=$(UBSAN_CHECKS)
+endif
 
 # No -Werror for game code (it must not be edited); our own code under
 # src/web/ gets it via a target-specific flag below.

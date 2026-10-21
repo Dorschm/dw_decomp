@@ -14,6 +14,9 @@
 
 __attribute__((aligned(16))) unsigned char PSX_RAM[0x200000];
 
+/* the PS1 scratchpad (0x1f800000, 1 KiB) -- see include/emcc/libetc.h */
+__attribute__((aligned(16))) unsigned char web_scratchpad[1024];
+
 /*
  * Safety net for baked PS1 pointers. Game data tables still hold literal
  * 0x80xxxxxx (KSEG0) / 0xA0xxxxxx (KSEG1) addresses that were never

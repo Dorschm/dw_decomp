@@ -1699,6 +1699,10 @@ int16_t VS_calculateElementBonus(int16_t arg0, int16_t arg1)
 	case 2:
 		return 1;
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t VS_countLivingEnemies(void)

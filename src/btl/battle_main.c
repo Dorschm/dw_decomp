@@ -2108,6 +2108,12 @@ void BTL_tickAttackHits(void)
 		if (popAttackObject(COMBAT_DATA_PTR->player.entityIds[i], &attack) == 0) {
 			continue;
 		}
+#ifdef PLATFORM_WEB
+		{
+			extern int web_dbg_popped;
+			web_dbg_popped++;
+		}
+#endif
 		if (FLEE_TIMER >= 0x13) {
 			continue;
 		}
@@ -2137,6 +2143,16 @@ void BTL_tickAttackHits(void)
 			NO_AI_FLAG = 0;
 			FINISHING_ENTITY = NULL;
 		}
+#ifdef PLATFORM_WEB
+		{
+			extern int web_dbg_hit, web_dbg_miss;
+			if (randomLimit(100) < hit) {
+				web_dbg_hit++;
+			} else {
+				web_dbg_miss++;
+			}
+		}
+#endif
 		if (randomLimit(100) < hit) {
 			BTL_retargetAfterHit((DigimonEntity *)entity, fighter, attack);
 			dmg = BTL_calculateDamage((DigimonEntity *)attacker, (DigimonEntity *)entity, tech);
@@ -3581,6 +3597,10 @@ int16_t BTL_calculateElementBonus(int16_t arg0, int16_t arg1)
 	case 2:
 		return 1;
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_countLivingEnemies(void)
@@ -3886,3 +3906,33 @@ void BTL_setCommandIconUV(DigimonEntity *digimon, POLY_FT4 *prim, uint8_t index)
 		setUVWH(prim, BTL_COMMAND_ICON_UVS[index - 1][0], BTL_COMMAND_ICON_UVS[index - 1][1], 0x10, 0xf);
 	}
 }
+
+#ifdef PLATFORM_WEB
+/* Web test hook (tools/web_drive.js): log the battle's AI/finisher state. */
+void web_debug_battle(void)
+{
+	int i;
+
+	{
+		extern int web_dbg_added, web_dbg_popped, web_dbg_hit, web_dbg_miss;
+		WEB_TRACE("btl: attackObjects added=%d popped=%d hitRoll=%d missRoll=%d",
+			  web_dbg_added, web_dbg_popped, web_dbg_hit, web_dbg_miss);
+	}
+	WEB_TRACE("btl: noAI=%d finishing=%p timer=%d aura=%d enemies=%d",
+		  (int)NO_AI_FLAG, (void *)FINISHING_ENTITY,
+		  (int)BTL_FINISHER_TIMER, (int)BTL_FINISHER_AURA_ID,
+		  (int)ENEMY_COUNT);
+	for (i = 0; i <= ENEMY_COUNT; i++) {
+		Entity *e = ENTITY_TABLE[COMBAT_DATA_PTR->player.entityIds[i]];
+		FighterData *f = &COMBAT_DATA_PTR->fighter[i];
+
+		WEB_TRACE("btl: [%d] ent=%p%s type=%x hp=%d dmgbuf=%d anim=%d animFlag=%x "
+			  "fflags=%x queued=%d cd=%d",
+			  i, (void *)e, e == FINISHING_ENTITY ? "(FINISHING)" : "",
+			  (int)e->type, (int)((DigimonEntity *)e)->stats.current.currentHP,
+			  (int)f->hpDamageBuffer,
+			  (int)e->anim.animId, (int)e->anim.animFlag,
+			  (unsigned)f->flags, (int)f->queuedAnim, (int)f->cooldown);
+	}
+}
+#endif

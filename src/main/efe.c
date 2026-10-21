@@ -117,7 +117,14 @@ uint8_t CLOUD_FX_COLOR[16] = {
 	0x80, 0x80, 0x80, 0x80, 0x79, 0x73, 0x6c, 0x66,
 	0x60, 0x59, 0x53, 0x4c, 0x46, 0x40, 0x00, 0x00,
 };
+#ifdef PLATFORM_WEB
+/* Exactly 16 characters: retail has no NUL here and relies on a zero pad byte
+ * after the array; on web the next bytes belong to another variable, so
+ * findEFEDATFile()'s strcpy ran on into garbage and the lookup failed. */
+char MAIN_D_8012342C[17] = "ETCHI\\EFEDAT.EFE";
+#else
 char MAIN_D_8012342C[16] = "ETCHI\\EFEDAT.EFE";
+#endif
 uint32_t EFEDAT_CD_LOCATION[4] = {0};
 
 static void *efe_data_order[] = {
@@ -969,6 +976,10 @@ int32_t setEFEFlashOffset(int32_t id, int16_t x, int16_t y)
 	data = &EFE_FLASH_DATA[id];
 	data->offsetX = x;
 	data->offsetY = y;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 #if VERSION_EQUAL_OR_NEWER(JP_TRIAL)
@@ -1043,7 +1054,11 @@ void initializeEFE(void)
 CdlLOC *getEFEDATEntry(int32_t id)
 {
 	int32_t sector;
+#ifdef PLATFORM_WEB
+	static CdlLOC loc; /* returning the address of a local is undefined behaviour */
+#else
 	CdlLOC loc;
+#endif
 
 	id -= 256;
 	sector = EFEDAT_CD_LOCATION[0] + (id * 10);

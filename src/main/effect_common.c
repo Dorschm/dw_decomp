@@ -499,6 +499,10 @@ int32_t addScreenPolyFT4(POLY_FT4 *poly, SVECTOR *v0, SVECTOR *v1, SVECTOR *v2,
 		poly++;
 		GsSetWorkBase((PACKET *)poly);
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t worldPosToScreenPos(SVECTOR *pos, DVECTOR *out)

@@ -1420,6 +1420,10 @@ int32_t DOOA_updateShards(int32_t instanceId)
 	}
 
 	effect->prevState = effect->state;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t DOOA_renderShards(int32_t instanceId)
@@ -1554,6 +1558,10 @@ int32_t DOOA_renderShards(int32_t instanceId)
 			break;
 		}
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 void DOOA_spawnBoneShards(DooaShardEffect *effect, int32_t boneIndex, long wireIndex)

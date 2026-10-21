@@ -2558,6 +2558,10 @@ int32_t flipTextboxPage(uint8_t a)
 	entry->backPage ^= 1;
 	entry->flipCount++;
 	entry->pageReady = 0;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 void calculateItemMenuStrings(ItemMenuBox *box, uint8_t row, int32_t isLast)

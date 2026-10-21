@@ -75,6 +75,10 @@ int32_t loadTextureFile(char *path, uint32_t *outTPage, uint32_t *outClut)
 
 		*outClut = GetClut(image.cx, image.cy);
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t readFile(char *path, void *buffer)
@@ -93,6 +97,10 @@ int32_t readFile(char *path, void *buffer)
 			while ((result = CdReadSync(0, NULL)) > 0);
 		} while (result != 0);
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t loadTIMFile(char *path, void *buffer)
@@ -111,6 +119,10 @@ int32_t loadTIMFile(char *path, void *buffer)
 		setRECT(&rect, image.cx, image.cy, image.cw, image.ch);
 		LoadImage(&rect, image.clut);
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t loadStackedTIMEntry(char *path, void *buffer, int32_t offset,
@@ -129,6 +141,10 @@ int32_t loadStackedTIMEntry(char *path, void *buffer, int32_t offset,
 		setRECT(&rect, image.cx, image.cy, image.cw, image.ch);
 		LoadImage(&rect, image.clut);
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t readFileSectors(char *path, void *buffer, int32_t offset,
@@ -148,4 +164,8 @@ int32_t readFileSectors(char *path, void *buffer, int32_t offset,
 			while ((result = CdReadSync(0, NULL)) > 0);
 		} while (result != 0);
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }

@@ -1854,6 +1854,10 @@ int32_t BTL_setupLoadedEFEFile(EfeLoad *load)
 		return 0;
 	}
 end:;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 void BTL_handleEFEFileLoaded(EfeLoad *load)
@@ -2117,6 +2121,10 @@ s4:
 		}
 next:;
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 char *BTL_initializeEFEEngine(char *base)
@@ -2190,6 +2198,10 @@ int32_t BTL_startEFE(int32_t i)
 
 	UNUSED_EFE_ARRAY[i] = -1;
 	BTL_runEFESlotScript(i);
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return EFE_ACTIVE_SECTION;
+#endif
 }
 
 void BTL_stopEFESubEffect(int32_t a, int32_t b)
@@ -4971,121 +4983,217 @@ void BTL_loadEFEImmediate(void)
 int32_t BTL_shiftRightInt32Variable(int32_t p)
 {
 	*(int32_t *)p >>= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_shiftLeftInt32Variable(int32_t p)
 {
 	*(int32_t *)p <<= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_moduloInt32Variable(int32_t p)
 {
 	*(int32_t *)p %= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_divideInt32Variable(int32_t p)
 {
 	*(int32_t *)p /= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_multiplyInt32Variable(int32_t p)
 {
 	*(int32_t *)p *= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_subtractInt32Variable(int32_t p)
 {
 	*(int32_t *)p -= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_addInt32Variable(int32_t p)
 {
 	*(int32_t *)p += EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_setInt32Variable(int32_t p)
 {
 	*(int32_t *)p = EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_shiftRightInt8Variable(int32_t p)
 {
 	*(int8_t *)p >>= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_shiftLeftInt8Variable(int32_t p)
 {
 	*(int8_t *)p <<= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_moduloInt8Variable(int32_t p)
 {
 	*(int8_t *)p %= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_divideInt8Variable(int32_t p)
 {
 	*(int8_t *)p /= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_multiplyInt8Variable(int32_t p)
 {
 	*(int8_t *)p *= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_subtractInt8Variable(int32_t p)
 {
 	*(int8_t *)p -= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_addInt8Variable(int32_t p)
 {
 	*(int8_t *)p += EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_setInt8Variable(int32_t p)
 {
 	*(int8_t *)p = EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_shiftRightInt16Variable(int32_t p)
 {
 	*(int16_t *)p >>= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_shiftLeftInt16Variable(int32_t p)
 {
 	*(int16_t *)p <<= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_moduloInt16Variable(int32_t p)
 {
 	*(int16_t *)p %= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_divideInt16Variable(int32_t p)
 {
 	*(int16_t *)p /= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_multiplyInt16Variable(int32_t p)
 {
 	*(int16_t *)p *= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_subtractInt16Variable(int32_t p)
 {
 	*(int16_t *)p -= EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_addInt16Variable(int32_t p)
 {
 	*(int16_t *)p += EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_setInt16Variable(int32_t p)
 {
 	*(int16_t *)p = EFE_SCRIPT_REGISTER;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 int32_t BTL_compareLess(int32_t x)
@@ -5160,6 +5268,10 @@ int16_t BTL_calculateAttackHitPosition(SVECTOR *out, Entity *self, Entity *other
 	ApplyMatrixSV(&m, out, out);
 	out->vx += (int16_t)self->posData->location.vx;
 	out->vz += (int16_t)self->posData->location.vz;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 void BTL_renderParallelLines(SVECTOR *a, SVECTOR *b, int16_t n, SVECTOR *from, SVECTOR *to, int32_t *col)

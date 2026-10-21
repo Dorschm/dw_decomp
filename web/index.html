@@ -215,7 +215,13 @@ Module = {
     statusEl.textContent = lines.join('\n');
     console.log(s);
   },
-  printErr: function (s) { console.warn(s); },
+  /* keep the distinct stderr lines for the test driver (UBSan reports etc.) */
+  printErr: function (s) {
+    var w = (window.__warns = window.__warns || { n: 0, seen: {}, list: [] });
+    if (!w.seen[s] && w.list.length < 2000) { w.seen[s] = 1; w.list.push(s); }
+    w.n++;
+    console.warn(s);
+  },
   disc: {
     ready: discReady,
     readRaw: function (lba, nsec) {

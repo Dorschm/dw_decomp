@@ -250,6 +250,10 @@ int32_t getItemOptionColor(int32_t mode)
 			return 0xa;
 		}
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 void drawInventoryText(void)

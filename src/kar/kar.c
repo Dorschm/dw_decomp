@@ -1810,6 +1810,10 @@ int32_t KAR_computeSeparation(VECTOR *out, KarStone *stone, VECTOR a, VECTOR b)
 	}
 
 	*out = v;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 void KAR_debugCollisionPair(KarStone *stoneA, VECTOR *a, KarStone *stoneB, VECTOR *b)
@@ -1910,6 +1914,10 @@ int32_t KAR_findWallContact(out, stone, flag)
 	} while (t <= 0);
 
 	*out = v;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 // clang-format off
@@ -2442,6 +2450,10 @@ int32_t KAR_chooseOpponentShot(void)
 			}
 		}
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 #if VERSION_IS(EU)

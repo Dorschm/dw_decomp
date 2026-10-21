@@ -2394,6 +2394,10 @@ int32_t popScriptStack(StackEntry *out)
 	}
 
 	*out = entry;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 void skipOneReadOneUShort(uint16_t *out)
@@ -2508,6 +2512,10 @@ int32_t setCardAmount(cardId, value)
 	} else {
 		*cardPtr = (*cardPtr & 0xf) | (value << 4);
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 // clang-format off

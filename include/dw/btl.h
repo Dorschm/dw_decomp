@@ -147,7 +147,11 @@ extern BtlParticleVelocity BTL_ITEM_PARTICLE_VELOCITIES[20];
 extern BtlParticleDrag BTL_ITEM_PARTICLE_DRAG[20];
 extern BtlItemParticleEffect BTL_ITEM_PARTICLE_EFFECTS[4];
 extern EfeBuffDisk BTL_BUFF_DISKS[1];
+#ifdef PLATFORM_WEB
+extern EfeTrailEffect BTL_BUFF_TRAILS[8];
+#else
 extern EfeTrailEffect BTL_BUFF_TRAILS[1];
+#endif
 extern int16_t BTL_BUFF_TRAIL_A_X[8];
 extern int16_t BTL_BUFF_TRAIL_A_Z[8];
 extern int16_t BTL_BUFF_TRAIL_B_X[8];

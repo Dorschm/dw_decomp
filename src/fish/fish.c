@@ -1382,6 +1382,10 @@ int32_t FISH_openBaitMenu(void)
 	createAnimatedUIBox(menu->boxId, 0, features, &menu->finalPos, &menu->startPos,
 	                    (TickFunction)FISH_tickBaitMenu, (RenderFunction)FISH_renderBaitMenu);
 	menu->shown = 1;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 void FISH_initBaitMenu(void)
@@ -1538,6 +1542,10 @@ int32_t FISH_showTextBox(char *line0, char *line1, char *line2, char *line3, VEC
 
 	view->box.shown = 1;
 	TEXTBOX_OPEN_TIMER = 0;
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 void FISH_initTextBox(void)

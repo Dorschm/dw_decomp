@@ -1265,6 +1265,10 @@ Entity *getEntityFromScriptId(uint8_t *scriptId)
 			return ENTITY_TABLE[i + 2];
 		}
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 void worldPosToScreenPos2(int16_t *x, int16_t *y, int16_t *z)

@@ -100,6 +100,10 @@ int32_t loadSoundFinishCallback(void *param)
 {
 	LOAD_SOUND_COMPLETE_STATE = 0;
 	setFileReadCallback2(loadSoundCompleteCallback, param);
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 void loadVHBFile(int32_t vabId, char *path, uint8_t *buffer, int32_t offset,
@@ -165,6 +169,10 @@ int32_t loadSoundCompleteCallback(void *param)
 		addr = SsUtGetVBaddrInSB(sb->vabId);
 		return 0;
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 void uploadSoundBuffer(int32_t vabId)

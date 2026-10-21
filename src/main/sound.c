@@ -645,6 +645,10 @@ uint32_t playSound(int32_t vabId, int32_t val)
 	} else if ((2 < vabId) && (vabId < 8)) {
 		return startSound(vabId, 0, val);
 	}
+#ifdef PLATFORM_WEB
+	/* retail falls off the end here: $v0 is unspecified */
+	return 0;
+#endif
 }
 
 void stopSound(void)

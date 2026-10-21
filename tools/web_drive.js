@@ -126,6 +126,10 @@
       const key = s.game + '/' + s.tamer + '/' + s.map;
       if (key !== last) { say('fight ' + n + ': game=' + s.game + ' tamer=' + s.tamer + ' map=' + s.map); last = key; }
       if (s.game !== 0 && !inBattle) { inBattle = true; say('fight ' + n + ': BATTLE ENTERED'); }
+      if (inBattle && Math.floor((performance.now() - t0) / 10000) > (DW._dumps || 0)) {
+        DW._dumps = (DW._dumps || 0) + 1;
+        say('fight ' + n + ' battle state: ' + DW.cap(() => Module._web_debug_battle()).join(' ; '));
+      }
       if (inBattle && shots < maxShots && Math.floor((performance.now() - t0) / 3000) > shots)
         DW.shot('f' + n + '_b' + String(++shots).padStart(2, '0') + '_g' + s.game);
       if (inBattle && s.game === 0) {

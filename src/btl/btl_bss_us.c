@@ -2161,7 +2161,11 @@ EfeBuffDisk BTL_BUFF_DISKS[1] = {
 	},
 };
 
+#ifdef PLATFORM_WEB
+EfeTrailEffect BTL_BUFF_TRAILS[8] = {
+#else
 EfeTrailEffect BTL_BUFF_TRAILS[1] = {
+#endif
 	{
 		0x7461,
 		0x7275,

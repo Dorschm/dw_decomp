@@ -97,9 +97,17 @@ void initializeAttackObjects(void)
 	}
 }
 
+#ifdef PLATFORM_WEB
+/* web test counters for the battle hit pipeline (see web_debug_battle) */
+int web_dbg_added, web_dbg_popped, web_dbg_hit, web_dbg_miss, web_dbg_other;
+#endif
+
 int32_t addAttackObject(int32_t victimId, int32_t active, SVECTOR *pos, int32_t effectId, int32_t subEffectIndex, int32_t casterId)
 {
 	int32_t i;
+#ifdef PLATFORM_WEB
+	web_dbg_added++;
+#endif
 
 	ATTACK_OBJECTS[16].active = -1;
 	for (i = 0;; i++) {
