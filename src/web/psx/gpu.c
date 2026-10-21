@@ -424,7 +424,9 @@ static void poly_common(const uint32_t *w, int nwords, int code)
 			if (v[k].y < dy) dy = v[k].y;
 			if (v[k].y > dy2) dy2 = v[k].y;
 		}
-		if (dx2 - dx > 1023 || dy2 - dy > 511)
+		/* PS1 GPU drops polygons wider than 1023 / taller than 511;
+		 * the WebGL path draws them (grown screen) */
+		if (!glgpu_on && (dx2 - dx > 1023 || dy2 - dy > 511))
 			return;
 	}
 	if (textured)

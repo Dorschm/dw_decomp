@@ -52,10 +52,26 @@ static uint16_t set_sz3(int32_t v)
 	return (uint16_t)v;
 }
 
+/* web: the grown screen (src/web/host/glgpu.c) extends past the PS1's
+ * [-1024,1023] screen range; widen the saturation (and its error flag,
+ * which libgs uses to cull polygons) to cover the margins */
+/* weak: standalone gte_test links gte.c without the renderer */
+__attribute__((weak)) int glgpu_ext;
+__attribute__((weak)) int glgpu_exty;
+
 static int16_t set_sxy(int c, int32_t v)	/* c=0:x(bits14/12) c=1:y(bits13/11) */
 {
-	if (v > 0x3FF)  { flag_or(1u << (14 - c)); return 0x3FF; }
-	if (v < -0x400) { flag_or(1u << (12 - c)); return -0x400; }
+	int32_t m = c ? glgpu_exty : glgpu_ext;
+	int32_t hi = 0x3FF, lo = -0x400;
+
+	if (m > 0) {
+		if (hi < (c ? 240 : 320) + m + 256) hi = (c ? 240 : 320) + m + 256;
+		if (lo > -m - 256) lo = -m - 256;
+		if (hi > 0x7FFF) hi = 0x7FFF;
+		if (lo < -0x8000) lo = -0x8000;
+	}
+	if (v > hi) { flag_or(1u << (14 - c)); return (int16_t)hi; }
+	if (v < lo) { flag_or(1u << (12 - c)); return (int16_t)lo; }
 	return (int16_t)v;
 }
 

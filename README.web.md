@@ -86,15 +86,19 @@ the four semi-transparency modes (STP-bit texels blend in a second pass).
 
 Once a disc is attached the game fills the browser window and the
 toolbar becomes a faint top-right overlay. The screen *grows* with the
-window instead of being magnified: one game pixel per 2 CSS pixels
-(`?zoom=1..8`), so a 640x480 window shows the original 320x240 and a
+window instead of being magnified: one game pixel per 2 CSS pixels by
+default; `-` / `=` / `0` or ctrl+wheel change that live (`?zoom=0.25..8`),
+so zooming out on a big screen can show a whole level. So a 640x480 window shows the original 320x240 and a
 bigger one shows more of the world in every direction (`?wide=0` keeps
 320x240). The two display buffers render into their own
 (320+2E)x(240+2F) targets; on the game side (`PLATFORM_WEB` guards in
 `src/main/map.c`) every tile of the current map is kept in an upper
 512-row VRAM half (texture pages with bits 11+14 set, which a 1 MiB PS1
 never addresses) and drawn whole, and the off-screen culling
-(`isOffScreen`, `isTileOffScreen`) widens by the margins. HUD and
+(`isOffScreen`, `isTileOffScreen`) widens by the margins; the GTE
+screen-coordinate saturation (and its cull flag) and the GPU's
+1024x512 polygon-size limit are widened to match. Margins are bounded
+only by the GL texture size. HUD and
 menus stay at their original 320x240 positions; 2D full-screen art
 (title, FMV) stays 4:3. 1:1 2D sprites are sampled at the PS1's
 top-left texel corner so packed font glyphs stay exact.

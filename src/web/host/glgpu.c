@@ -48,6 +48,7 @@ static int last_present[5];
 static GLuint scr_tex[2], scr_fbo[2];
 static int scr_E = -1, scr_F = -1;
 static double zoom = 2.0;	/* CSS pixels per game pixel (?zoom=) */
+static int max_tex = 4096;
 static int wide_on = 1;
 static GLint u_map_draw, u_map_copy;
 static void ensure_screens(int E, int F);
@@ -258,6 +259,7 @@ int glgpu_init(const uint16_t *vram)
 	}
 	emscripten_webgl_make_context_current(ctx);
 	glGetIntegerv(GL_MAX_TEXTURE_SIZE, &maxtex);
+	max_tex = maxtex;
 	while (S > 1 && 1024 * S > maxtex)
 		S--;
 
@@ -342,11 +344,11 @@ int glgpu_init(const uint16_t *vram)
 		"typeof location==='undefined'?1:"
 		"(new URLSearchParams(location.search).get('wide')==='0'?0:1)");
 	{
-		int z = emscripten_run_script_int(
+		double z = emscripten_run_script_int(
 			"typeof location==='undefined'?0:"
-			"parseInt(new URLSearchParams(location.search)"
-			".get('zoom')||'0',10)");
-		if (z >= 1 && z <= 8)
+			"Math.round(100*parseFloat(new URLSearchParams("
+			"location.search).get('zoom')||'0'))") / 100.0;
+		if (z >= 0.25 && z <= 8)
 			zoom = z;
 	}
 	ensure_screens(0, 0);
@@ -642,10 +644,29 @@ static void margins_for(double cw, double ch, int *E, int *F)
 	}
 	*E = (int)((W - 320) / 2);
 	*F = (int)((H - 240) / 2);
-	if (*E > 640)
-		*E = 640;
-	if (*F > 480)
-		*F = 480;
+	/* the only bound: each screen target must fit in a GL texture */
+	while (*E > 0 && (320 + 2 * *E) * S > max_tex)
+		(*E)--;
+	while (*F > 0 && (240 + 2 * *F) * S > max_tex)
+		(*F)--;
+}
+
+/* live zoom (page keys / ctrl+wheel): CSS pixels per game pixel.
+ * Smaller = more of the world on screen. */
+EMSCRIPTEN_KEEPALIVE
+void web_set_zoom(double z)
+{
+	if (z < 0.25)
+		z = 0.25;
+	if (z > 8.0)
+		z = 8.0;
+	zoom = z;
+}
+
+EMSCRIPTEN_KEEPALIVE
+double web_get_zoom(void)
+{
+	return zoom;
 }
 
 void glgpu_present(int dx, int dy, int dw, int dh, int rgb24)

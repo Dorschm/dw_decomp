@@ -11,7 +11,7 @@ WASM := $(BUILD_DIR)/dw.wasm
 LDFLAGS := -O2 -sUSE_SDL=2 -sMAX_WEBGL_VERSION=2 -sASYNCIFY -lidbfs.js \
 	-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=64MB \
 	-sEXPORTED_RUNTIME_METHODS=FS,ccall,cwrap \
-	-sEXPORTED_FUNCTIONS=_main,_web_dump_display,_web_dump_vram,_web_gpu_stats,_web_pad_inject,_web_pad_set_touch,_web_debug_state,_web_audio_capture,_web_audio_capture_on_seq,_web_audio_resume,_web_mc_reload,_web_perf_report,_web_gs_trace,_web_overlay_checksum,_web_entity_dump,_web_debug_warp,_web_gl_probe \
+	-sEXPORTED_FUNCTIONS=_main,_web_dump_display,_web_dump_vram,_web_gpu_stats,_web_pad_inject,_web_pad_set_touch,_web_debug_state,_web_audio_capture,_web_audio_capture_on_seq,_web_audio_resume,_web_mc_reload,_web_perf_report,_web_gs_trace,_web_overlay_checksum,_web_entity_dump,_web_debug_warp,_web_gl_probe,_web_set_zoom,_web_get_zoom \
 	-sEMULATE_FUNCTION_POINTER_CASTS=1 \
 	-sNO_EXIT_RUNTIME=1
 

@@ -58,6 +58,7 @@
                        border-radius: 17px; }
   #touch .sh button { width: 64px; height: 34px; font-size: 12px; }
   #touch .invis { visibility: hidden; }
+  #zoom { color: #8b93a3; font-size: 12px; }
 
   /* playing: the game fills the whole window. WebGL renders at the
    * window's device-pixel size and letterboxes 4:3 itself; the software
@@ -337,6 +338,34 @@ if (('ontouchstart' in window) || navigator.maxTouchPoints > 0) {
     btn.addEventListener('pointerleave', up);
   });
 }
+/* ---- zoom: how much of the world is on screen --------------------
+ * '-' zooms out (more world), '=' zooms in, '0' resets; ctrl+wheel too.
+ * Zoom = CSS pixels per game pixel; the game's screen grows to fill the
+ * window at that density instead of being magnified. */
+var zoomEl = document.createElement('span');
+zoomEl.id = 'zoom';
+document.querySelector('.bar').appendChild(zoomEl);
+function showZoom() {
+  if (!Module._web_get_zoom) return;
+  zoomEl.textContent = 'zoom ' + Module._web_get_zoom().toFixed(2) +
+    '  (- / = / 0, ctrl+wheel)';
+}
+function stepZoom(f) {
+  if (!Module._web_set_zoom) return;
+  Module._web_set_zoom(f === 0 ? 2 : Module._web_get_zoom() * f);
+  showZoom();
+}
+window.addEventListener('keydown', function (e) {
+  if (e.key === '-' || e.key === '_') { stepZoom(1 / 1.25); e.preventDefault(); }
+  else if (e.key === '=' || e.key === '+') { stepZoom(1.25); e.preventDefault(); }
+  else if (e.key === '0') { stepZoom(0); e.preventDefault(); }
+}, true);
+window.addEventListener('wheel', function (e) {
+  if (!e.ctrlKey || !document.body.classList.contains('playing')) return;
+  e.preventDefault();
+  stepZoom(e.deltaY > 0 ? 1 / 1.1 : 1.1);
+}, { passive: false });
+setInterval(showZoom, 1000);
 fitCanvas();
 </script>
 <script src="dw.js"></script>
