@@ -192,13 +192,17 @@ static GLuint link(const char *vs, const char *fs)
 
 static int query_scale(void)
 {
-	/* ?scale=N (1..8) or ?renderer=soft (returns 0) */
+	/* ?scale=N (1..8), else auto from the display; ?renderer=soft -> 0 */
 	return emscripten_run_script_int(
 		"(function(){if(typeof location==='undefined')return 4;"
 		"var q=new URLSearchParams(location.search);"
 		"if(q.get('renderer')==='soft')return 0;"
-		"var s=parseInt(q.get('scale')||'4',10);"
-		"return(s>=1&&s<=8)?s:4;})()");
+		"var s=parseInt(q.get('scale')||'0',10);"
+		"if(s>=1&&s<=8)return s;"
+		/* auto: enough internal resolution for a fullscreen 4:3 image
+		 * on this display, capped to keep the framebuffer sane */
+		"var h=(screen.height||720)*(window.devicePixelRatio||1);"
+		"return Math.max(2,Math.min(6,Math.ceil(h/240)));})()");
 }
 
 int glgpu_init(const uint16_t *vram)
@@ -475,7 +479,8 @@ void glgpu_vram_changed(int x, int y, int w, int h)
 
 void glgpu_present(int dx, int dy, int dw, int dh, int rgb24)
 {
-	int want_w, want_h;
+	int want_w, want_h, vw, vh;
+	double cw = 0, ch = 0, dpr;
 
 	n_present++;
 	last_present[0] = dx; last_present[1] = dy; last_present[2] = dw;
@@ -484,16 +489,33 @@ void glgpu_present(int dx, int dy, int dw, int dh, int rgb24)
 	sync_vram_tex();
 	if (dw <= 0) dw = 320;
 	if (dh <= 0) dh = 240;
-	/* fixed 4:3 output at the internal scale */
-	want_w = 320 * S;
-	want_h = 240 * S;
+	/* drawing buffer = the canvas's on-screen size in device pixels
+	 * (the page sizes it to the window); the 4:3 image is letterboxed
+	 * inside it, never stretched */
+	dpr = emscripten_get_device_pixel_ratio();
+	emscripten_get_element_css_size("#canvas", &cw, &ch);
+	want_w = (int)(cw * dpr + 0.5);
+	want_h = (int)(ch * dpr + 0.5);
+	if (want_w < 16 || want_h < 16) {
+		want_w = 320 * S;
+		want_h = 240 * S;
+	}
 	if (want_w != canvas_w || want_h != canvas_h) {
 		emscripten_set_canvas_element_size("#canvas", want_w, want_h);
 		canvas_w = want_w;
 		canvas_h = want_h;
 	}
+	vw = canvas_w;
+	vh = canvas_w * 3 / 4;
+	if (vh > canvas_h) {
+		vh = canvas_h;
+		vw = canvas_h * 4 / 3;
+	}
 	glBindFramebuffer(GL_FRAMEBUFFER, 0);
 	glViewport(0, 0, canvas_w, canvas_h);
+	glClearColor(0, 0, 0, 1);
+	glClear(GL_COLOR_BUFFER_BIT);
+	glViewport((canvas_w - vw) / 2, (canvas_h - vh) / 2, vw, vh);
 	glDisable(GL_BLEND);
 	glUseProgram(prog_present);
 	glActiveTexture(GL_TEXTURE0);

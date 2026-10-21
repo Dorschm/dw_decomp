@@ -76,13 +76,18 @@ In a browser the game renders natively through WebGL2
 (`src/web/host/glgpu.c`) instead of the software rasterizer. The game
 still builds its own PS1 primitive packets (that is game code), and
 `gpu.c` still decodes them, but triangles, sprites and lines are drawn by
-the GPU into an upscaled framebuffer laid out like PS1 VRAM (4x by
-default, `?scale=1..8`), so double-buffered draw areas and the display
+the GPU into an upscaled framebuffer laid out like PS1 VRAM (scale picked
+from the display, 2x-6x, or `?scale=1..8`), so double-buffered draw areas and the display
 rect work unchanged. Texture/CLUT data uploaded by the game stays in a
 CPU-side VRAM array mirrored to an `R16UI` texture; the fragment shader
 decodes 4/8/15 bpp + CLUT, texture windows, raw/modulated texturing and
 the four semi-transparency modes (STP-bit texels blend in a second pass).
 24-bit (movie) display reads the VRAM mirror directly.
+
+Once a disc is attached the game fills the browser window: the canvas
+drawing buffer tracks the window size in device pixels and the 4:3
+image is letterboxed/pillarboxed inside it (never stretched); the
+toolbar becomes a faint top-right overlay.
 
 `?renderer=soft` forces the software path (A/B comparison); headless node
 always uses it.

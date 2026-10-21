@@ -58,6 +58,21 @@
                        border-radius: 17px; }
   #touch .sh button { width: 64px; height: 34px; font-size: 12px; }
   #touch .invis { visibility: hidden; }
+
+  /* playing: the game fills the whole window. WebGL renders at the
+   * window's device-pixel size and letterboxes 4:3 itself; the software
+   * path's 320x240 canvas is fitted with object-fit (no stretching). */
+  body.playing { overflow: hidden; }
+  body.playing .stage { position: fixed; inset: 0; border: 0;
+                        border-radius: 0; z-index: 5; }
+  body.playing #canvas { width: 100vw !important; height: 100vh !important;
+                         height: 100dvh !important; object-fit: contain; }
+  body.playing .bar { position: fixed; top: 8px; right: 8px; z-index: 10;
+                      margin: 0; opacity: .2; transition: opacity .2s; }
+  body.playing .bar:hover, body.playing .bar:focus-within { opacity: 1; }
+  body.playing .bar .discbtn { display: none; }
+  body.playing #touch { position: absolute; left: 0; right: 0; bottom: 10px;
+                        margin: 0; padding: 0 12px; opacity: .6; }
 </style>
 </head>
 <body>
@@ -68,7 +83,7 @@
        the file is read locally.</div>
 
   <div class="bar">
-    <label class="filebtn">Select .bin<input type="file" id="disc"
+    <label class="filebtn discbtn">Select .bin<input type="file" id="disc"
         accept=".bin,.img,.cue"></label>
     <button id="fs">Fullscreen</button>
     <button id="exportSave">Export save</button>
@@ -143,6 +158,7 @@ setInterval(function () {
  * area is 320x240; SDL may resize it (e.g. 24-bit movie path), so scale
  * off the canvas's own pixel size. */
 function fitCanvas() {
+  if (document.body.classList.contains('playing')) return;
   var c = document.getElementById('canvas');
   var availW = Math.min(window.innerWidth - 24,
                         document.querySelector('.stage').clientWidth - 2);
@@ -159,7 +175,7 @@ window.addEventListener('resize', fitCanvas);
 setInterval(fitCanvas, 2000);   /* catches canvas attribute resizes */
 
 document.getElementById('fs').addEventListener('click', function () {
-  var s = document.querySelector('.stage');
+  var s = document.documentElement;
   (s.requestFullscreen || s.webkitRequestFullscreen).call(s);
 });
 
@@ -171,6 +187,9 @@ function attachSource(src) {
   if (discSource) return;
   discSource = src;
   bootTime = Date.now();
+  document.body.classList.add('playing');
+  var c = document.getElementById('canvas');
+  c.style.width = c.style.height = '';
   discResolve(src);
 }
 
