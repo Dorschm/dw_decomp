@@ -655,14 +655,41 @@ void glgpu_vram_changed(int x, int y, int w, int h)
 /* logical screen for a cw x ch CSS-pixel window: one game pixel per
  * `zoom` CSS pixels, never smaller than 320x240, same aspect as the
  * window; returns the extra columns/rows per side */
+/* The retail map background is a fixed grid of 128x128 tiles; a window wider
+ * than that shows black past its edge. So the view never zooms out past
+ * "cover": the largest scale at which the map still fills the window
+ * (the camera limits in map.c keep the grown view on the map). */
+static int map_w, map_h;
+extern int8_t GAME_STATE;
+
+void glgpu_set_map_size(int w, int h)
+{
+	map_w = w;
+	map_h = h;
+}
+
+static double effective_zoom(double cw, double ch)
+{
+	double z = zoom, c;
+
+	if (map_w > 0 && map_h > 0 && GAME_STATE == 0) {
+		c = cw / map_w;
+		if (ch / map_h > c)
+			c = ch / map_h;
+		if (c > z)
+			z = c;
+	}
+	return z > 8.0 ? 8.0 : z;
+}
+
 static void margins_for(double cw, double ch, int *E, int *F)
 {
-	double W, H;
+	double W, H, z = effective_zoom(cw, ch);
 
 	*E = *F = 0;
 	if (cw <= 0 || ch <= 0)
 		return;
-	H = ch / zoom;
+	H = ch / z;
 	if (H < 240)
 		H = 240;
 	W = H * cw / ch;
@@ -689,6 +716,13 @@ void web_set_zoom(double z)
 	if (z > 8.0)
 		z = 8.0;
 	zoom = z;
+}
+
+/* widescreen margins (game pixels per side) for page overlays */
+EMSCRIPTEN_KEEPALIVE
+int web_get_margins(void)
+{
+	return (scr_E > 0 ? scr_E : 0) | ((scr_F > 0 ? scr_F : 0) << 16);
 }
 
 EMSCRIPTEN_KEEPALIVE

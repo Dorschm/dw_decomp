@@ -533,3 +533,64 @@ void web_debug_warp(int map, int exit, int force)
 	stopGameTime();
 	emscripten_console_logf("warp: -> map %d exit %d", map, exit);
 }
+
+/* ---- netplay hooks (web/netplay.js) ---------------------------------
+ * Read-only views of the tamer for the multiplayer relay, and a
+ * world->screen projection so the page can place other players' markers
+ * with the game's own camera. Layout (see web_debug_state): Entity:
+ * type(4) posData(4) animPtr(4) anim(...); PositionData: location at
+ * +116, rotation SVECTOR at +108; EntityAnim.animId at entity+46. */
+extern char TAMER_ENTITY[];
+extern int8_t GAME_STATE, CURRENT_SCREEN, TAMER_STATE;
+
+/* out[0]=in field with a live tamer, [1]=map, [2..4]=x,y,z, [5]=rot y,
+ * [6]=tamer state, [7]=anim id */
+int32_t *web_net_local(void)
+{
+	static int32_t out[12];
+	uint8_t *pd = *(uint8_t **)(TAMER_ENTITY + 4);
+
+	for (int i = 0; i < 12; i++)
+		out[i] = 0;
+	if (pd == NULL || GAME_STATE != 0)
+		return out;
+	out[0] = 1;
+	out[1] = (int32_t)CURRENT_SCREEN;
+	/* world-matrix translation of posData[1]: exactly what
+	 * getEntityScreenPos(tamer, 1) projects, so remote positions sent in
+	 * this space land in the same place on every client */
+	out[2] = *(int32_t *)(pd + 136 + 72);
+	out[3] = *(int32_t *)(pd + 136 + 76);
+	out[4] = *(int32_t *)(pd + 136 + 80);
+	out[5] = *(int16_t *)(pd + 110);
+	out[6] = (int32_t)TAMER_STATE;
+	out[7] = *(uint8_t *)(TAMER_ENTITY + 46);
+	return out;
+}
+
+/* project a world position through the current camera; returns
+ * {x, y} in the game's 320x240 screen space (valid only in the field) */
+int16_t *web_net_project(int32_t x, int32_t y, int32_t z)
+{
+	static int16_t out[2];
+	uint8_t pd[2 * 136];
+	uint8_t ent[64];
+	uint8_t *src = *(uint8_t **)(TAMER_ENTITY + 4);
+	int k;
+
+	out[0] = out[1] = 0;
+	if (src == NULL)
+		return out;
+	for (k = 0; k < (int)sizeof(pd); k++)
+		pd[k] = src[k];
+	for (k = 0; k < 2; k++) {
+		*(int32_t *)(pd + k * 136 + 72) = x;
+		*(int32_t *)(pd + k * 136 + 76) = y;
+		*(int32_t *)(pd + k * 136 + 80) = z;
+	}
+	for (k = 0; k < (int)sizeof(ent); k++)
+		ent[k] = (uint8_t)TAMER_ENTITY[k];
+	*(uint8_t **)(ent + 4) = pd;
+	getEntityScreenPos((int32_t)(uintptr_t)ent, 1, (int32_t)(uintptr_t)out);
+	return out;
+}

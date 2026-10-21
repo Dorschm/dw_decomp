@@ -3979,6 +3979,71 @@ void initializeMap(void)
  */
 extern void web_vram_upload_hi(int x, int y, int w, int h, const void *data);
 
+/* Widescreen camera limits (web only). The view is 320+2E x 240+2F game
+ * pixels (E/F = glgpu_ext/exty), so the camera may only come within E/F of
+ * the map edge; closer and the extra margins show past the map as black.
+ * The base limits are the retail 320x240 values saved at map load. */
+extern int glgpu_ext, glgpu_exty;
+extern void glgpu_set_map_size(int w, int h);
+static int16_t webBaseLimit[4];
+
+static int32_t webMargin(int32_t ext, int32_t mapPx, int32_t view)
+{
+	int32_t m = (mapPx - view) / 2;
+
+	if (m < 0) {
+		m = 0;
+	}
+	return ext < m ? ext : m;
+}
+
+static void webApplyViewLimits(void)
+{
+	int32_t ex = webMargin(glgpu_ext, MAP_TILE_DATA.width * 128, 320);
+	int32_t ey = webMargin(glgpu_exty, MAP_TILE_DATA.height * 128, 240);
+
+	DRAW_OFFSET_LIMIT_X_MAX = webBaseLimit[0] - ex;
+	DRAW_OFFSET_LIMIT_X_MIN = webBaseLimit[1] + ex;
+	DRAW_OFFSET_LIMIT_Y_MAX = webBaseLimit[2] - ey;
+	DRAW_OFFSET_LIMIT_Y_MIN = webBaseLimit[3] + ey;
+}
+
+/* clamp the camera so the whole grown view stays on the map; edge flags
+ * follow cameraIsAtEdge (0 = pinned at that edge) */
+static void webClampCamera(int32_t *outX, int32_t *outY)
+{
+	int32_t ex = webMargin(glgpu_ext, MAP_TILE_DATA.width * 128, 320);
+	int32_t ey = webMargin(glgpu_exty, MAP_TILE_DATA.height * 128, 240);
+
+	webApplyViewLimits();
+	if (MAP_TILE_DATA.cameraX < ex) {
+		MAP_TILE_DATA.cameraX = ex;
+		DRAWING_OFFSET_X = DRAW_OFFSET_LIMIT_X_MAX;
+		if (outX != NULL) {
+			*outX = 0;
+		}
+	} else if (MAP_TILE_DATA.cameraX > (MAP_TILE_DATA.width * 128) - 320 - ex) {
+		MAP_TILE_DATA.cameraX = (MAP_TILE_DATA.width * 128) - 320 - ex;
+		DRAWING_OFFSET_X = DRAW_OFFSET_LIMIT_X_MIN;
+		if (outX != NULL) {
+			*outX = 0;
+		}
+	}
+	if (MAP_TILE_DATA.cameraY < ey) {
+		MAP_TILE_DATA.cameraY = ey;
+		DRAWING_OFFSET_Y = DRAW_OFFSET_LIMIT_Y_MAX;
+		if (outY != NULL) {
+			*outY = 0;
+		}
+	} else if (MAP_TILE_DATA.cameraY > (MAP_TILE_DATA.height * 128) - 240 - ey) {
+		MAP_TILE_DATA.cameraY = (MAP_TILE_DATA.height * 128) - 240 - ey;
+		DRAWING_OFFSET_Y = DRAW_OFFSET_LIMIT_Y_MIN;
+		if (outY != NULL) {
+			*outY = 0;
+		}
+	}
+}
+
 static int16_t webTileTpage(int32_t i)
 {
 	int32_t ylocal = (i / 16) * 128;
@@ -4361,6 +4426,13 @@ void setupMap(void)
 	DRAW_OFFSET_LIMIT_X_MIN = -(MAP_TILE_DATA.width * 128 - 320 - DRAW_OFFSET_LIMIT_X_MAX);
 	DRAW_OFFSET_LIMIT_Y_MAX = MAP_TILE_DATA.cameraY + 120;
 	DRAW_OFFSET_LIMIT_Y_MIN = -(MAP_TILE_DATA.height * 128 - 240 - DRAW_OFFSET_LIMIT_Y_MAX);
+#ifdef PLATFORM_WEB
+	webBaseLimit[0] = DRAW_OFFSET_LIMIT_X_MAX;
+	webBaseLimit[1] = DRAW_OFFSET_LIMIT_X_MIN;
+	webBaseLimit[2] = DRAW_OFFSET_LIMIT_Y_MAX;
+	webBaseLimit[3] = DRAW_OFFSET_LIMIT_Y_MIN;
+	glgpu_set_map_size(MAP_TILE_DATA.width * 128, MAP_TILE_DATA.height * 128);
+#endif
 	PLAYER_OFFSET_X = DRAWING_OFFSET_X = 160;
 	PLAYER_OFFSET_Y = DRAWING_OFFSET_Y = 120;
 
@@ -4471,6 +4543,9 @@ void initializeDrawingOffsets(MapTileData *tiles)
 	PLAYER_OFFSET_X += viewScreen.vx - tamerScreen.vx;
 	PLAYER_OFFSET_Y += viewScreen.vy - tamerScreen.vy;
 
+#ifdef PLATFORM_WEB
+	webClampCamera(NULL, NULL);
+#endif
 	if (MAP_TILE_DATA.cameraX < 0) {
 		MAP_TILE_DATA.cameraX = 0;
 		DRAWING_OFFSET_X = DRAW_OFFSET_LIMIT_X_MAX;
@@ -4538,6 +4613,9 @@ void uploadMapTileImages(MapTileData *tiles, int16_t index)
 
 void unloadMap(void)
 {
+#ifdef PLATFORM_WEB
+	glgpu_set_map_size(0, 0);
+#endif
 	int32_t i;
 
 	for (i = 0; i < 35; i++) {
@@ -4911,6 +4989,9 @@ void handleTileUpdate(int32_t input, int32_t force)
 void cameraIsAtEdge(int32_t *outX, int32_t *outY)
 {
 	*outX = *outY = 1;
+#ifdef PLATFORM_WEB
+	webClampCamera(outX, outY);
+#endif
 
 	if (MAP_TILE_DATA.cameraX < 0) {
 		MAP_TILE_DATA.cameraX = 0;

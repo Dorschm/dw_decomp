@@ -86,6 +86,7 @@
   <div class="bar">
     <label class="filebtn discbtn">Select .bin<input type="file" id="disc"
         accept=".bin,.img,.cue"></label>
+    <button id="resumeDisc" style="display:none"></button>
     <button id="fs">Fullscreen</button>
     <button id="exportSave">Export save</button>
     <label class="filebtn">Import save<input type="file" id="importSave"
@@ -274,6 +275,59 @@ if (m) {
   });
 }
 
+/* ---- remember the disc between visits (File System Access API) ------
+ * The handle to the file the player picked is kept in IndexedDB; the
+ * disc itself never leaves the player's machine. Chrome/Edge only. */
+(function () {
+  var btn = document.getElementById('resumeDisc');
+  var inp = document.getElementById('disc');
+  function idb(mode, fn) {
+    return new Promise(function (res, rej) {
+      var o = indexedDB.open('dw_disc', 1);
+      o.onupgradeneeded = function () { o.result.createObjectStore('h'); };
+      o.onerror = function () { rej(o.error); };
+      o.onsuccess = function () {
+        var tx = o.result.transaction('h', mode);
+        var r = fn(tx.objectStore('h'));
+        tx.oncomplete = function () { res(r && r.result); };
+        tx.onerror = function () { rej(tx.error); };
+      };
+    });
+  }
+  function use(f) {
+    statusEl.textContent = 'disc attached: ' + f.name + ' (' + f.size + ' bytes)\n';
+    attachSource({
+      readRaw: function (off, len) {
+        return f.slice(off, off + len).arrayBuffer()
+          .then(function (b) { return new Uint8Array(b); });
+      },
+    });
+  }
+  if (!window.showOpenFilePicker || !window.indexedDB) return;
+  /* make the normal button remember the pick */
+  inp.parentNode.addEventListener('click', function (e) {
+    e.preventDefault();
+    window.showOpenFilePicker({ types: [{ description: 'PS1 disc image',
+        accept: { 'application/octet-stream': ['.bin', '.img'] } }] })
+      .then(function (hs) {
+        idb('readwrite', function (st) { return st.put(hs[0], 'disc'); })
+          .catch(function () {});
+        return hs[0].getFile();
+      }).then(use).catch(function () {});
+  }, true);
+  idb('readonly', function (st) { return st.get('disc'); }).then(function (h) {
+    if (!h) return;
+    btn.textContent = 'Resume: ' + h.name;
+    btn.style.display = '';
+    btn.addEventListener('click', function () {
+      h.requestPermission({ mode: 'read' }).then(function (p) {
+        if (p !== 'granted') throw new Error('permission ' + p);
+        return h.getFile();
+      }).then(use).catch(function (e) { statusEl.textContent = 'resume failed: ' + e + '\n'; });
+    });
+  }).catch(function () {});
+})();
+
 /* ---- audio unlock -------------------------------------------------- */
 var audioUnlocked = false;
 function unlockAudio() {
@@ -375,5 +429,6 @@ setInterval(showZoom, 1000);
 fitCanvas();
 </script>
 <script src="dw.js"></script>
+<script src="netplay.js"></script>
 </body>
 </html>
