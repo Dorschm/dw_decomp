@@ -145,6 +145,35 @@ overlay code itself once battles can be driven.
   `PLATFORM_WEB`-guarded overlay-reset hook plus mechanical `PSX_PTR`
   address wraps.
 
+## Debugging / test tooling
+
+- `tools/serve_nocache.py` -- dev server with caching off (+ `/__shot/` upload).
+- `tools/web_drive.js` -- browser driver: `eval(await (await
+  fetch('/dw_decomp/tools/web_drive.js')).text())` then
+  `DW.battleScenario({fights: 2})`: boots the harness save, force-warps to a
+  forest map, teleports the tamer onto wild Digimon (`web_debug_tp`) so the
+  game's own script starts the battle, mashes buttons, screenshots to
+  `.tmp_test/shots/`. First uncaught errors are kept in `DW.errs`.
+- `make ... WEB_NAMES=1 web` keeps wasm function names;
+  `tools/wasm_names.py web/dw.wasm <index>...` resolves `wasm-function[N]`
+  from a browser stack trace.
+- `Module._web_psx_ram()` + `DW.peek(addr, n)` read the emulated PS1 RAM.
+
+## Semantics the port must keep (found the hard way)
+
+- The game relies on 1990s-compiler behaviour: null dereferences are loads of
+  low memory, signed overflow wraps, type punning. `mk/toolchain/emcc.mk`
+  builds with `-fno-delete-null-pointer-checks -fwrapv -fno-strict-aliasing`.
+  Without them clang turns e.g. `addFileReadRequest`'s `*loc` (loc == NULL)
+  into `unreachable`: the battle overlay never loaded.
+- Integer divide/remainder never traps on MIPS (x/0 = -1 or 1, x%0 = x).
+  `tools/wasm_safe_div.py` rewrites every i32 div/rem in the linked wasm
+  (run from `mk/platform/web.mk`), e.g. `512 / (i * 13 / 4)` at i == 0 in
+  tickHealingParticles.
+- Overlay-source symbols that the PS1 link keeps in the *main* exe
+  (`config/us/overlay_main_resident.txt`, made by `tools/overlay_resident.py`
+  from the PS1 link map) are excluded from the overlay `.data` reset.
+
 ## Known gaps
 
 - Two pre-existing wasm-ld signature-mismatch warnings

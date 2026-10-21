@@ -281,8 +281,11 @@ int ClearImage2(RECT *rect, u_char r, u_char g, u_char b)
 	return 0;
 }
 
+extern void *web_psx_ptr(const void *p, const char *who);
+
 int LoadImage(RECT *rect, u_long *p)
 {
+	p = web_psx_ptr(p, "LoadImage");
 	gpu_load_image(rect, (const uint32_t *)p);
 	return 0;
 }

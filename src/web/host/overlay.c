@@ -29,6 +29,7 @@ extern const uint32_t OVR_SYM_COUNTS[17];
 /* saved images: one malloc'd blob per overlay */
 static uint8_t *ovr_saved[17];
 static int snap_taken;
+static unsigned skip_mask;	/* ?ovskip=<hex>: skip these symbol indices in the reset (debug) */
 
 extern void emscripten_console_log(const char *str);
 extern void emscripten_console_logf(const char *fmt, ...);
@@ -49,16 +50,19 @@ void web_overlay_snapshot_all(void)
 	uint32_t total = 0;
 	if (snap_taken)
 		return;
-	/* Off by default: restoring overlay .data was observed to blank the
-	 * game's text (title menu, naming screen, dialogue boxes) even with
-	 * the movie overlay excluded; root cause not found. ?ovreset=1 opts
-	 * in for debugging the stale-overlay-state issue it was meant for. */
+	/* OFF by default; ?ovreset=1 enables. Turning it on makes the intro FMV
+	 * and the title/menu text misbehave (title menu box renders without
+	 * text) even when every symbol restore is skipped (?ovskip=ff), so
+	 * the trigger is not the restored data -- root cause not found. */
 	if (!emscripten_run_script_int(
 		    "typeof location==='undefined'?0:"
 		    "(new URLSearchParams(location.search).get('ovreset')==='1'?1:0)")) {
 		emscripten_console_log("ovr: overlay .data reset off (?ovreset=1 enables)");
 		return;
 	}
+	skip_mask = (unsigned)emscripten_run_script_int(
+		"typeof location==='undefined'?0:"
+		"parseInt(new URLSearchParams(location.search).get('ovskip')||'0',16)");
 	for (int lib = 1; lib <= 16; lib++) {
 		const OvrSym *t = OVR_SYM_TABLES[lib];
 		uint32_t n = OVR_SYM_COUNTS[lib], bytes = 0, off = 0;
@@ -111,7 +115,8 @@ void web_overlay_reset(int lib)
 		}
 	}
 	for (uint32_t i = 0; i < n; i++) {
-		memcpy(t[i].addr, src + off, t[i].size);
+		if (!(i < 32 && ((skip_mask >> i) & 1)))
+			memcpy(t[i].addr, src + off, t[i].size);
 		off += t[i].size;
 	}
 	{

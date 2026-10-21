@@ -51,12 +51,13 @@ empty :=
 space := $(empty) $(empty)
 LLVM_NM ?= /emsdk/upstream/bin/llvm-nm
 
-$(GEN_DIR)/overlay_syms.c: tools/gen_overlay_syms.py \
+$(GEN_DIR)/overlay_syms.c: tools/gen_overlay_syms.py config/us/overlay_main_resident.txt \
 	$(BTL_OBJ) $(DGET_OBJ) $(DOO2_OBJ) $(DOOA_OBJ) $(EAB_OBJ) \
 	$(ENDI_OBJ) $(EVL_OBJ) $(FISH_OBJ) $(KAR_OBJ) $(MOV_OBJ) \
 	$(MURD_OBJ) $(SHOP_OBJ) $(STD_OBJ) $(TRN_OBJ) $(TRN2_OBJ) $(VS_OBJ)
 	@mkdir -p $(dir $@)
 	$(PYTHON) tools/gen_overlay_syms.py $@ nm=$(LLVM_NM) \
+		resident=config/us/overlay_main_resident.txt \
 		btl=$(subst $(space),$(comma),$(BTL_OBJ)) \
 		dget=$(subst $(space),$(comma),$(DGET_OBJ)) \
 		doo2=$(subst $(space),$(comma),$(DOO2_OBJ)) \

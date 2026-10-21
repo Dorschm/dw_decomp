@@ -1834,3 +1834,20 @@ void tamerTickAwardSomething(void)
 		break;
 	}
 }
+
+#ifdef PLATFORM_WEB
+/* Web test hook (tools/web_drive.js): put the tamer on top of entity
+ * `idx` so that entity's auto-talk script (e.g. a wild battle) fires
+ * through the game's own trigger path. */
+void web_debug_tp(int idx)
+{
+	Entity *e = ENTITY_TABLE[idx];
+
+	if (e == NULL || e->posData == NULL) {
+		return;
+	}
+	TAMER_ENTITY.entity.posData->location = e->posData->location;
+	TAMER_ENTITY.entity.anim.locX = e->anim.locX;
+	TAMER_ENTITY.entity.anim.locZ = e->anim.locZ;
+}
+#endif

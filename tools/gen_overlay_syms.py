@@ -43,10 +43,16 @@ def main():
     out_path = sys.argv[1]
     nm = 'llvm-nm'
     overlays = {}
+    resident = set()
     for arg in sys.argv[2:]:
         key, _, val = arg.partition('=')
         if key == 'nm':
             nm = val
+        elif key == 'resident':
+            # symbols the PS1 link keeps in the main exe (see
+            # tools/overlay_resident.py): never part of an overlay image
+            resident = {l.strip() for l in open(val)
+                        if l.strip() and not l.startswith('#')}
         else:
             overlays[key] = val.split(',')
 
@@ -54,15 +60,9 @@ def main():
     tables = []
     for ov in sorted(overlays, key=lambda o: OVERLAY_IDS[o]):
         syms = []
-        # mov: every global is re-initialised per play by
-        # MOV_initEnvironment()/DecDCTvlcBuild(), so a reset is redundant
-        # -- and restoring its ~460 KB of stream/VLC buffers was observed
-        # to break font/text rendering afterwards (naming screen glyphs
-        # missing; root cause not yet identified). Leave it out.
-        if ov == 'mov':
-            overlays[ov] = []
         for obj in overlays[ov]:
-            syms.extend(nm_syms(nm, obj))
+            syms.extend((n, sz) for n, sz in nm_syms(nm, obj)
+                        if n not in resident)
         table = f'ovr_syms_{ov}'
         for name, _ in syms:
             decls.append(f'extern uint8_t {name}[];')

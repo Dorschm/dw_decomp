@@ -469,10 +469,37 @@ GsOT *GsSortOt(GsOT *ot_src, GsOT *ot_dest)
 }
 
 /* glabel GsGetTimInfo */
+extern void *web_psx_ptr(const void *p, const char *who);
+
+extern unsigned long emscripten_get_heap_size(void);
+extern unsigned char PSX_RAM[];
+
 void GsGetTimInfo(unsigned long *im, GsIMAGE *tim)
 {
-	uint8_t *p = (uint8_t *)im;
+	uint8_t *p = (uint8_t *)web_psx_ptr(im, "GsGetTimInfo");
 	uint8_t *q;
+
+	{
+		/* a TIM header whose block size points outside memory means the
+		 * buffer was not (fully) loaded: report it instead of trapping */
+		uint32_t *w = (uint32_t *)p;
+		uint32_t blk = (w[0] & 8) ? w[1] : 0;
+		if (blk > 0x200000 || (uintptr_t)p + 64 + blk >
+					      (uintptr_t)emscripten_get_heap_size()) {
+			emscripten_console_logf(
+				"GsGetTimInfo: BAD TIM at %p (PSX_RAM+%x) words "
+				"%08x %08x %08x %08x",
+				(void *)p, (unsigned)((uint8_t *)p - PSX_RAM),
+				(unsigned)w[0], (unsigned)w[1], (unsigned)w[2],
+				(unsigned)w[3]);
+			tim->pmode = 0;
+			tim->px = tim->py = tim->pw = tim->ph = 0;
+			tim->cx = tim->cy = tim->cw = tim->ch = 0;
+			tim->pixel = NULL;
+			tim->clut = NULL;
+			return;
+		}
+	}
 	tim->pmode = *(uint32_t *)p;
 	if ((tim->pmode >> 3) & 1) {
 		/* CLUT present */
@@ -583,6 +610,14 @@ void GsMapModelingData(unsigned long *p)
 	unsigned long *base;
 	unsigned long n, i;
 	struct TMD_STRUCT *o;
+	p = web_psx_ptr(p, "GsMapModelingData");
+	{
+		if ((p[0] & 1) == 0 && p[1] > 4096) {
+			emscripten_console_logf("GsMapModelingData: BAD TMD (n=%u), skipped",
+						(unsigned)p[1]);
+			return;
+		}
+	}
 	if (p[0] & 1)
 		return;
 	p[0] |= 1;

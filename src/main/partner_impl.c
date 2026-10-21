@@ -2217,3 +2217,20 @@ void setImmortalHour(void)
 	HAS_IMMORTAL_HOUR = 1;
 	IMMORTAL_HOUR = HOUR;
 }
+
+#ifdef PLATFORM_WEB
+/* Web test hook (tools/web_drive.js): the harness skips the intro (where
+ * the partner hatches and gets its stats), so give an uninitialised
+ * partner plain starting stats instead of dividing by a zero max HP. */
+void web_debug_partner_stats(void)
+{
+	Stats *st = &PARTNER_ENTITY.digimonEntity.stats;
+
+	if (st->base.hp != 0) {
+		return;
+	}
+	st->current.currentHP = st->base.hp = 9999;
+	st->current.currentMP = st->base.mp = 9999;
+	st->base.off = st->base.def = st->base.speed = st->base.brain = 999;
+}
+#endif

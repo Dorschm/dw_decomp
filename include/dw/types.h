@@ -32,8 +32,12 @@ typedef unsigned int uintptr_t;
  * one address space exactly like on hardware. */
 extern unsigned char PSX_RAM[0x200000];
 #define PSX_PTR(addr) ((void *)(PSX_RAM + ((addr) & 0x1FFFFF)))
+/* web debug trace to the browser console; compiles to nothing on PS1 */
+extern void emscripten_console_logf(const char *fmt, ...);
+#define WEB_TRACE(...) emscripten_console_logf(__VA_ARGS__)
 #else
 #define PSX_PTR(addr) ((void *)(addr))
+#define WEB_TRACE(...) ((void)0)
 #endif
 
 #endif

@@ -1,6 +1,12 @@
 CC := emcc
 
-CFLAGS := -O2 -Wall -std=c99 -sUSE_SDL=2
+# The game was written for 1990s MIPS compilers that made none of
+# today's undefined-behaviour assumptions. Keep their semantics: a null
+# dereference is an ordinary load of low memory (e.g. addFileReadRequest's
+# `*loc` with loc == NULL, harmless on PS1 but compiled to `unreachable`
+# by clang), signed overflow wraps, and objects may be type-punned.
+UB_FLAGS := -fno-delete-null-pointer-checks -fwrapv -fno-strict-aliasing
+CFLAGS := -O2 -Wall -std=c99 -sUSE_SDL=2 $(UB_FLAGS)
 
 # No -Werror for game code (it must not be edited); our own code under
 # src/web/ gets it via a target-specific flag below.
