@@ -9,6 +9,7 @@
  */
 
 #include <SDL.h>
+#include "glgpu.h"
 #include <emscripten/console.h>
 #include <emscripten.h>
 #include <unistd.h>
@@ -28,6 +29,7 @@ extern int gpu_dispmask;
 extern uint16_t gpu_vram[512][1024];
 void gpu_present_rgba(uint8_t *out, const void *disp);
 void gpu_stats_dump(void);
+void gpu_present_gl(void);
 
 /* gpu_dispenv is a DISPENV; declared opaquely here to avoid the PsyQ
  * headers clashing with SDL.h */
@@ -195,13 +197,17 @@ void web_present(void)
 	int h = gpu_dispenv.h ? gpu_dispenv.h : 240;
 	(void)gpu_dispmask;
 
+	if (glgpu_on) {
+		gpu_present_gl();
+		return;
+	}
 	if (renderer == NULL)
 		return;
 	if (w != tex_w || h != tex_h) {
 		if (texture)
 			SDL_DestroyTexture(texture);
 		texture = SDL_CreateTexture(renderer,
-					    SDL_PIXELFORMAT_RGBA8888,
+					    SDL_PIXELFORMAT_ABGR8888,
 					    SDL_TEXTUREACCESS_STREAMING,
 					    w, h);
 		tex_w = w;
@@ -302,9 +308,12 @@ int main(void)
 					SDL_GetError());
 		return 1;
 	}
-	/* Software renderer; tolerated to fail under headless node. */
-	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
-	if (renderer == NULL)
+	/* Native WebGL2 renderer when available; otherwise the software
+	 * GPU + SDL 2D renderer (also the headless node path). */
+	if (!glgpu_init(&gpu_vram[0][0]))
+		renderer = SDL_CreateRenderer(window, -1,
+					      SDL_RENDERER_SOFTWARE);
+	if (!glgpu_on && renderer == NULL)
 		emscripten_console_logf("web: no renderer (%s); running "
 					"headless", SDL_GetError());
 	audio_init();

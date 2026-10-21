@@ -23,6 +23,7 @@
 
 #include "gpu.h"
 #include "../host/log.h"
+#include "../host/glgpu.h"
 
 static void zmem(void *p, unsigned int n)
 {
@@ -155,6 +156,26 @@ static uint16_t fetch_texel(int u, int v, uint16_t clut)
 	}
 }
 
+/* ---- WebGL path ------------------------------------------------------ */
+
+static void gl_prim(GlPrim *p, int textured, int raw, int semi,
+		    uint16_t clut)
+{
+	p->textured = textured != 0;
+	p->raw = raw != 0;
+	p->semi = semi != 0;
+	p->blend = (gpu_state.draw_mode >> 5) & 3;
+	p->tbx = tex_base_x;
+	p->tby = tex_base_y;
+	p->depth = tex_depth;
+	p->clut = clut;
+	p->tw = gpu_state.tw;
+	p->cx0 = gpu_state.draw_x0;
+	p->cy0 = gpu_state.draw_y0;
+	p->cx1 = gpu_state.draw_x1;
+	p->cy1 = gpu_state.draw_y1;
+}
+
 /* ---- scanline triangle fill ----------------------------------------- */
 
 typedef struct Vtx {
@@ -170,6 +191,13 @@ static void fill_tri(const Vtx *tv, int gouraud, int textured, int abr,
 	Vtx t;
 	long area;
 	int x0, y0, x1, y1, x, y;
+
+	if (glgpu_on) {
+		GlPrim p;
+		gl_prim(&p, textured, raw, abr, clut);
+		glgpu_tri((const GlVtx *)tv, &p);
+		return;
+	}
 
 	area = (long)(v[1].x - v[0].x) * (v[2].y - v[0].y) -
 	       (long)(v[1].y - v[0].y) * (v[2].x - v[0].x);
@@ -289,6 +317,27 @@ static void draw_line(int x0, int y0, int x1, int y1,
 	int dx = x1 - x0, dy = y1 - y0;
 	int n = ABS(dx) > ABS(dy) ? ABS(dx) : ABS(dy);
 	int i;
+
+	if (glgpu_on) {
+		GlPrim p;
+		GlVtx q[4];
+		int k, hx = ABS(dx) >= ABS(dy);
+		gl_prim(&p, 0, 0, abr, 0);
+		for (k = 0; k < 4; k++) {
+			int end = k & 1, side = (k >> 1) & 1;
+			q[k].x = (end ? x1 : x0) + gpu_state.ofs_x +
+				 (hx ? 0 : side);
+			q[k].y = (end ? y1 : y0) + gpu_state.ofs_y +
+				 (hx ? side : 0);
+			q[k].r = end ? r1 : r0;
+			q[k].g = end ? g1 : g0;
+			q[k].b = end ? b1 : b0;
+			q[k].u = q[k].v = 0;
+		}
+		glgpu_tri(q, &p);
+		glgpu_tri(q + 1, &p);
+		return;
+	}
 
 	if (n == 0) {
 		put_pixel(x0 + gpu_state.ofs_x, y0 + gpu_state.ofs_y,
@@ -418,6 +467,22 @@ static void rect_common(const uint32_t *w, int nwords, int code)
 	case 2: ww = hh = 8; break;
 	case 3: ww = hh = 16; break;
 	}
+	if (glgpu_on) {
+		GlPrim p;
+		GlVtx q[4];
+		int k;
+		gl_prim(&p, textured, code & 1, abr, clut);
+		for (k = 0; k < 4; k++) {
+			q[k].x = x + ((k & 1) ? ww : 0);
+			q[k].y = y + ((k & 2) ? hh : 0);
+			q[k].r = r; q[k].g = g; q[k].b = b;
+			q[k].u = u + ((k & 1) ? ww : 0);
+			q[k].v = v + ((k & 2) ? hh : 0);
+		}
+		glgpu_tri(q, &p);
+		glgpu_tri(q + 1, &p);
+		return;
+	}
 	{
 		int xx, yy;
 		int x1 = clip_x(x), x2 = clip_x(x + ww - 1);
@@ -529,6 +594,9 @@ void gpu_exec_packet(const uint32_t *words, int nwords)
 					int xx, yy;
 					uint16_t c = (r >> 3) | ((g >> 3) << 5) |
 						     ((b >> 3) << 10);
+					if (glgpu_on)
+						glgpu_fill(x1, y1, x2 - x1 + 1,
+							   y2 - y1 + 1, r, g, b);
 					for (yy = y1; yy <= y2; yy++)
 						for (xx = x1; xx <= x2; xx++) {
 							if (gpu_state.mask_check &&
@@ -599,6 +667,8 @@ void gpu_exec_packet(const uint32_t *words, int nwords)
 							gpu_vram[(sy + y) &
 								 0x1ff]
 							[(sx + x) & 0x3ff];
+				if (glgpu_on)
+					glgpu_vram_changed(dx, dy, ww, hh);
 				i += 4;
 			} else if (code == 0xA0) {
 				int dx, dy, ww, hh;
@@ -676,6 +746,8 @@ void gpu_load_image(const RECT *r, const uint32_t *data)
 			gpu_vram[(r->y + y) & 0x1ff][(r->x + x) & 0x3ff] =
 				(hw & 1) ? (w >> 16) : (w & 0xffff);
 		}
+	if (glgpu_on)
+		glgpu_vram_changed(r->x, r->y, r->w, r->h);
 }
 
 void gpu_store_image(const RECT *r, uint32_t *data)
@@ -707,6 +779,8 @@ void gpu_move_image(const RECT *r, int dx, int dy)
 				gpu_vram[(dy + y) & 0x1ff][(dx + x) & 0x3ff] =
 					gpu_vram[(r->y + y) & 0x1ff]
 						[(r->x + x) & 0x3ff];
+	if (glgpu_on)
+		glgpu_vram_changed(dx, dy, r->w, r->h);
 }
 
 void gpu_clear_image(const RECT *r, uint8_t rv, uint8_t gv, uint8_t bv)
@@ -716,6 +790,8 @@ void gpu_clear_image(const RECT *r, uint8_t rv, uint8_t gv, uint8_t bv)
 	for (y = 0; y < r->h; y++)
 		for (x = 0; x < r->w; x++)
 			gpu_vram[(r->y + y) & 0x1ff][(r->x + x) & 0x3ff] = c;
+	if (glgpu_on)
+		glgpu_fill(r->x, r->y, r->w, r->h, rv, gv, bv);
 }
 
 void gpu_draw_env(const DRAWENV *env)
@@ -781,6 +857,13 @@ void gpu_present_rgba(uint8_t *out, const DISPENV *disp)
 			o[3] = 255;
 		}
 	}
+}
+
+void gpu_present_gl(void)
+{
+	glgpu_present(gpu_dispenv.disp.x, gpu_dispenv.disp.y,
+		      gpu_dispenv.disp.w, gpu_dispenv.disp.h,
+		      gpu_dispenv.isrgb24);
 }
 
 void gpu_stats_dump(void)

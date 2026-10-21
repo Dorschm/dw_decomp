@@ -49,6 +49,13 @@ void web_overlay_snapshot_all(void)
 	uint32_t total = 0;
 	if (snap_taken)
 		return;
+	/* ?ovreset=0 disables the reset (A/B debugging) */
+	if (!emscripten_run_script_int(
+		    "typeof location==='undefined'?1:"
+		    "(new URLSearchParams(location.search).get('ovreset')==='0'?0:1)")) {
+		emscripten_console_log("ovr: reset disabled by ?ovreset=0");
+		return;
+	}
 	for (int lib = 1; lib <= 16; lib++) {
 		const OvrSym *t = OVR_SYM_TABLES[lib];
 		uint32_t n = OVR_SYM_COUNTS[lib], bytes = 0, off = 0;

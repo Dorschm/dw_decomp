@@ -55,7 +55,8 @@ DuckStation/PCSX); **Import save** writes one back.
 | host | `host/input.c` | SDL2 keyboard/gamepad → PsyQ pad bitmask; `web_pad_inject`/`web_pad_set_touch` harness hooks |
 | host | `host/memcard.c` | two-slot 128 KiB card images, `/memcard` IDBFS persistence |
 | host | `host/overlay.c` | snapshot/restore of overlay `.data` on every `loadDynamicLibrary` (see below) |
-| psx  | `psx/gpu.c`, `libgpu.c` | software GPU: command dispatch, textured/shaded primitives, VRAM, display |
+| host | `host/glgpu.c` | native WebGL2 renderer (default in browsers) — see below |
+| psx  | `psx/gpu.c`, `libgpu.c` | GP0 packet decode + software rasterizer fallback (node harness, `?renderer=soft`), VRAM, display |
 | psx  | `psx/gte.c`, `libgte.c` | cop2 register file + geometry ops (`gte_*` macros via `include/emcc/inline_n.h`), libgte matrix/vector API |
 | psx  | `psx/libgs.c` | Gs 2D/3D objects, cameras, ordering tables, TMD primitive stream |
 | psx  | `psx/libcd.c`, `libds.c` | CD-ROM: raw/user-sector reads, file table, XA/STR sector streaming ring (`St*`), XA-ADPCM audio |
@@ -69,6 +70,28 @@ Blocking PS1 semantics (VSync waits, CD reads, overlay loads) suspend
 the wasm via `-sASYNCIFY`, so game code keeps its original synchronous
 structure.
 
+### Renderer
+
+In a browser the game renders natively through WebGL2
+(`src/web/host/glgpu.c`) instead of the software rasterizer. The game
+still builds its own PS1 primitive packets (that is game code), and
+`gpu.c` still decodes them, but triangles, sprites and lines are drawn by
+the GPU into an upscaled framebuffer laid out like PS1 VRAM (4x by
+default, `?scale=1..8`), so double-buffered draw areas and the display
+rect work unchanged. Texture/CLUT data uploaded by the game stays in a
+CPU-side VRAM array mirrored to an `R16UI` texture; the fragment shader
+decodes 4/8/15 bpp + CLUT, texture windows, raw/modulated texturing and
+the four semi-transparency modes (STP-bit texels blend in a second pass).
+24-bit (movie) display reads the VRAM mirror directly.
+
+`?renderer=soft` forces the software path (A/B comparison); headless node
+always uses it.
+
+Not yet handled on the WebGL path: sampling textures from areas the GPU
+itself drew into (render-to-texture), `StoreImage`/`MoveImage` reading
+GPU-drawn pixels, the mask-bit check (E6), and dithering (deliberately
+off at high resolution).
+
 ### Overlay state
 
 Retail reloads `*_REL.BIN` into RAM on every `loadDynamicLibrary()`,
@@ -80,6 +103,10 @@ writable data symbol from the compiled objects (`llvm-nm`), generates
 `loadDynamicLibrary`) restore the startup bytes on each load. The audit
 found no `.bss` and only immutable compiler-generated statics in overlay
 TUs, so the extern symbol tables cover all mutable overlay state.
+The movie overlay (`mov`) is excluded: it re-initialises all of its state
+per play, and restoring its ~460 KB of stream/VLC buffers was observed to
+leave the naming screen's glyphs blank afterwards (root cause not yet
+identified). `?ovreset=0` disables the reset for A/B debugging.
 
 ## Verified
 

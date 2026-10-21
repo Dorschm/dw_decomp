@@ -8,7 +8,7 @@ CPPFLAGS := -DLANGUAGE_C -D$(VERSION_MACRO) -DPLATFORM_WEB $(INC)
 EXE := $(BUILD_DIR)/dw.js
 WASM := $(BUILD_DIR)/dw.wasm
 
-LDFLAGS := -O2 -sUSE_SDL=2 -sASYNCIFY -lidbfs.js \
+LDFLAGS := -O2 -sUSE_SDL=2 -sMAX_WEBGL_VERSION=2 -sASYNCIFY -lidbfs.js \
 	-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=64MB \
 	-sEXPORTED_RUNTIME_METHODS=FS,ccall,cwrap \
 	-sEXPORTED_FUNCTIONS=_main,_web_dump_display,_web_dump_vram,_web_gpu_stats,_web_pad_inject,_web_pad_set_touch,_web_debug_state,_web_audio_capture,_web_audio_resume,_web_mc_reload,_web_perf_report,_web_gs_trace,_web_overlay_checksum,_web_entity_dump \

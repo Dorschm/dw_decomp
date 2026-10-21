@@ -54,6 +54,13 @@ def main():
     tables = []
     for ov in sorted(overlays, key=lambda o: OVERLAY_IDS[o]):
         syms = []
+        # mov: every global is re-initialised per play by
+        # MOV_initEnvironment()/DecDCTvlcBuild(), so a reset is redundant
+        # -- and restoring its ~460 KB of stream/VLC buffers was observed
+        # to break font/text rendering afterwards (naming screen glyphs
+        # missing; root cause not yet identified). Leave it out.
+        if ov == 'mov':
+            overlays[ov] = []
         for obj in overlays[ov]:
             syms.extend(nm_syms(nm, obj))
         table = f'ovr_syms_{ov}'

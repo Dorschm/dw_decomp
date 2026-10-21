@@ -147,8 +147,11 @@ function fitCanvas() {
   var availW = Math.min(window.innerWidth - 24,
                         document.querySelector('.stage').clientWidth - 2);
   var availH = window.innerHeight - c.getBoundingClientRect().top - 140;
-  var scale = Math.max(1, Math.floor(Math.min(
-      availW / c.width, availH / c.height)));
+  var scale = Math.min(availW / c.width, availH / c.height);
+  /* software path (320x240): integer scale; WebGL path renders at
+   * N x internal resolution, so fit it smoothly */
+  scale = c.width <= 320 ? Math.max(1, Math.floor(scale))
+                         : Math.min(scale, 1);
   c.style.width = (c.width * scale) + 'px';
   c.style.height = (c.height * scale) + 'px';
 }
