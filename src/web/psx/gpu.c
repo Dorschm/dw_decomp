@@ -33,7 +33,7 @@ static void zmem(void *p, unsigned int n)
 }
 #define ABS(a) ((a) < 0 ? -(a) : (a))
 
-uint16_t gpu_vram[GPU_VRAM_H][GPU_VRAM_W];
+uint16_t gpu_vram[GPU_VRAM_ALLOC_H][GPU_VRAM_W];
 GpuState gpu_state;
 int gpu_dispmask;
 DISPENV gpu_dispenv;
@@ -123,7 +123,11 @@ static void set_tpage(uint16_t tpage)
 	gpu_state.draw_mode = (gpu_state.draw_mode & 0xF000) |
 			      (tpage & 0x0FFF);
 	tex_base_x = (tpage & 0xF) * 64;
-	tex_base_y = ((tpage >> 4) & 1) * 256 + ((tpage >> 11) & 1) * 512;
+	/* bit 11 (2 MiB VRAM "y2") is ignored by a 1 MiB PS1 and the game
+	 * leaves it set on some sprites; the web-only upper VRAM half is
+	 * addressed by bits 11+14 together (map tiles, see renderMap) */
+	tex_base_y = ((tpage >> 4) & 1) * 256 +
+		     ((tpage & 0x4800) == 0x4800 ? 512 : 0);
 	tex_depth = (tpage >> 7) & 3;
 	if (tex_depth > 2) tex_depth = 2;
 }
@@ -748,6 +752,21 @@ void gpu_load_image(const RECT *r, const uint32_t *data)
 		}
 	if (glgpu_on)
 		glgpu_vram_changed(r->x, r->y, r->w, r->h);
+}
+
+/* web-only: upload a halfword image into the upper VRAM half
+ * (rows 512..1023), which only web-built texture pages address */
+void web_vram_upload_hi(int x, int y, int w, int h, const void *data)
+{
+	const uint16_t *src = data;
+	int xx, yy;
+
+	for (yy = 0; yy < h; yy++)
+		for (xx = 0; xx < w; xx++)
+			gpu_vram[512 + ((y + yy) & 0x1ff)][(x + xx) & 0x3ff] =
+				*src++;
+	if (glgpu_on)
+		glgpu_vram_changed(x, 512 + y, w, h);
 }
 
 void gpu_store_image(const RECT *r, uint32_t *data)

@@ -26,7 +26,7 @@ extern unsigned char PSX_RAM[0x200000];
 
 /* src/web/psx/gpu.c */
 extern int gpu_dispmask;
-extern uint16_t gpu_vram[512][1024];
+extern uint16_t gpu_vram[1024][1024];
 void gpu_present_rgba(uint8_t *out, const void *disp);
 void gpu_stats_dump(void);
 void gpu_present_gl(void);

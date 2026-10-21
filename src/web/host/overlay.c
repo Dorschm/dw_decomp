@@ -49,11 +49,14 @@ void web_overlay_snapshot_all(void)
 	uint32_t total = 0;
 	if (snap_taken)
 		return;
-	/* ?ovreset=0 disables the reset (A/B debugging) */
+	/* Off by default: restoring overlay .data was observed to blank the
+	 * game's text (title menu, naming screen, dialogue boxes) even with
+	 * the movie overlay excluded; root cause not found. ?ovreset=1 opts
+	 * in for debugging the stale-overlay-state issue it was meant for. */
 	if (!emscripten_run_script_int(
-		    "typeof location==='undefined'?1:"
-		    "(new URLSearchParams(location.search).get('ovreset')==='0'?0:1)")) {
-		emscripten_console_log("ovr: reset disabled by ?ovreset=0");
+		    "typeof location==='undefined'?0:"
+		    "(new URLSearchParams(location.search).get('ovreset')==='1'?1:0)")) {
+		emscripten_console_log("ovr: overlay .data reset off (?ovreset=1 enables)");
 		return;
 	}
 	for (int lib = 1; lib <= 16; lib++) {

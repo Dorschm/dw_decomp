@@ -3666,6 +3666,18 @@ int32_t isTileOffScreen(int8_t tileX, int8_t tileZ)
 	screen.vx -= 160 - DRAWING_OFFSET_X;
 	screen.vy -= 120 - DRAWING_OFFSET_Y;
 
+#ifdef PLATFORM_WEB
+	{
+		/* grown screen: tiles in the extra margins count as visible */
+		extern int glgpu_ext, glgpu_exty;
+		if ((screen.vx < -200 - glgpu_ext) || (screen.vx > 200 + glgpu_ext) ||
+		    (screen.vy < -160 - glgpu_exty) ||
+		    (screen.vy > 160 + glgpu_exty)) {
+			return 1;
+		}
+		return 0;
+	}
+#endif
 	if ((screen.vx < -200) || (screen.vx > 200) || (screen.vy < -160) ||
 	    (screen.vy > 160)) {
 		return 1;
@@ -3904,6 +3916,16 @@ int32_t entityIsOffScreen(Entity *entity, int32_t width, int32_t height)
 
 int32_t isOffScreen(DVECTOR *pos, int16_t width, int16_t height)
 {
+#ifdef PLATFORM_WEB
+	/* grown screen: screen-sized checks cover the extra margins */
+	extern int glgpu_ext, glgpu_exty;
+	if (width >= 320) {
+		width += 2 * glgpu_ext;
+	}
+	if (height >= 240) {
+		height += 2 * glgpu_exty;
+	}
+#endif
 	if ((pos->vx - (160 - DRAWING_OFFSET_X)) < (-width / 2)) {
 		return 1;
 	}
@@ -3946,6 +3968,68 @@ void initializeMap(void)
 	SKIP_DAYTIME_TRANSITION = 0;
 }
 
+#ifdef PLATFORM_WEB
+/*
+ * Widescreen background (web only). Retail streams a 4x3 window of the
+ * map's 128x128 8bpp tiles through VRAM (uploadMapTileImages), enough
+ * for a 320-wide view. The web build instead keeps every tile of the
+ * current map resident in the upper half of its 1024-row VRAM (texture
+ * pages with bits 11+14 set) and draws all of them, so a wider view
+ * (glgpu_ext extra columns per side) shows real map instead of black.
+ */
+extern void web_vram_upload_hi(int x, int y, int w, int h, const void *data);
+
+static int16_t webTileTpage(int32_t i)
+{
+	int32_t ylocal = (i / 16) * 128;
+
+	return (int16_t)((i % 16) | ((ylocal >= 256) << 4) | (1 << 7) |
+			 (1 << 11) | (1 << 14));
+}
+
+static void webUploadAllMapTiles(void)
+{
+	int32_t i;
+	int32_t n = MAP_TILE_DATA.width * MAP_TILE_DATA.height;
+
+	for (i = 0; i < n && i < 35; i++) {
+		if (MAP_TILE_DATA.tiles[i].imagePtr == NULL)
+			continue;
+		web_vram_upload_hi((i % 16) * 64, (i / 16) * 128, 64, 128,
+				   MAP_TILE_DATA.tiles[i].imagePtr);
+	}
+}
+
+static void webRenderAllMapTiles(GsOT_TAG *ot)
+{
+	POLY_FT4 *prim;
+	MapTileData *tile;
+	int32_t i;
+	int32_t v;
+	int32_t n = MAP_TILE_DATA.width * MAP_TILE_DATA.height;
+
+	for (i = 0; i < n && i < 35; i++) {
+		tile = &MAP_TILE_DATA.tiles[i];
+		prim = (POLY_FT4 *)GsGetWorkBase();
+		SetPolyFT4(prim);
+		if (MAP_TILES[i] == -1) {
+			setRGB0(prim, 0, 0, 0);
+		} else {
+			setRGB0(prim, 0x80, 0x80, 0x80);
+		}
+		v = ((i / 16) * 128) % 256;
+		setUVDataPolyFT4(prim, 0, v, 0x80, v != 0 ? 0x7F : 0x80);
+		prim->tpage = webTileTpage(i);
+		prim->clut = tile->clut;
+		setPosDataMapTile(tile, MAP_TILE_DATA.cameraX,
+				  MAP_TILE_DATA.cameraY, prim);
+		AddPrim(&ot[0xfff], prim);
+		++prim;
+		GsSetWorkBase((PACKET *)prim);
+	}
+}
+#endif
+
 void renderMap(int32_t arg0)
 {
 	POLY_FT4 *prim;
@@ -3982,7 +4066,13 @@ void renderMap(int32_t arg0)
 
 	ot = ACTIVE_ORDERING_TABLE->org;
 
-	for (row = 0; row < 3; row++) {
+#ifdef PLATFORM_WEB
+	webRenderAllMapTiles(ot);
+	row = 3; /* skip the retail 4x3 tile-window loop below */
+#else
+	row = 0;
+#endif
+	for (; row < 3; row++) {
 		for (col = 0; col < columns; col++) {
 			prim = (POLY_FT4 *)GsGetWorkBase();
 			SetPolyFT4(prim);
@@ -4262,6 +4352,9 @@ void setupMap(void)
 		}
 	}
 
+#ifdef PLATFORM_WEB
+	webUploadAllMapTiles();
+#endif
 	MAP_TILE_DATA.cameraX = ((MAP_TILE_DATA.width * 128) / 2) - 160;
 	MAP_TILE_DATA.cameraY = ((MAP_TILE_DATA.height * 128) / 2) - 120;
 	DRAW_OFFSET_LIMIT_X_MAX = MAP_TILE_DATA.cameraX + 160;

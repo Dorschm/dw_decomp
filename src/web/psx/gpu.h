@@ -12,8 +12,12 @@
 
 #define GPU_VRAM_W 1024
 #define GPU_VRAM_H 512
+/* web-only: a second 512-row half (texture pages with bits 11+14 set)
+ * holding whole-map background tiles for widescreen; see
+ * web_vram_upload_hi() and renderMap() under PLATFORM_WEB */
+#define GPU_VRAM_ALLOC_H 1024
 
-extern uint16_t gpu_vram[GPU_VRAM_H][GPU_VRAM_W];
+extern uint16_t gpu_vram[GPU_VRAM_ALLOC_H][GPU_VRAM_W];
 
 /* Draw state (0xE1..0xE6), exposed for libgpu. */
 typedef struct GpuState {

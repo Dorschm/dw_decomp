@@ -30,6 +30,8 @@ typedef struct GlPrim {
 } GlPrim;
 
 extern int glgpu_on;
+/* widescreen: extra columns drawn on each side of the 320-wide screen */
+extern int glgpu_ext, glgpu_exty;
 
 int glgpu_init(const uint16_t *vram);
 void glgpu_tri(const GlVtx v[3], const GlPrim *p);

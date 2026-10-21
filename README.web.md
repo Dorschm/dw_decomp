@@ -84,10 +84,20 @@ decodes 4/8/15 bpp + CLUT, texture windows, raw/modulated texturing and
 the four semi-transparency modes (STP-bit texels blend in a second pass).
 24-bit (movie) display reads the VRAM mirror directly.
 
-Once a disc is attached the game fills the browser window: the canvas
-drawing buffer tracks the window size in device pixels and the 4:3
-image is letterboxed/pillarboxed inside it (never stretched); the
-toolbar becomes a faint top-right overlay.
+Once a disc is attached the game fills the browser window and the
+toolbar becomes a faint top-right overlay. The screen *grows* with the
+window instead of being magnified: one game pixel per 2 CSS pixels
+(`?zoom=1..8`), so a 640x480 window shows the original 320x240 and a
+bigger one shows more of the world in every direction (`?wide=0` keeps
+320x240). The two display buffers render into their own
+(320+2E)x(240+2F) targets; on the game side (`PLATFORM_WEB` guards in
+`src/main/map.c`) every tile of the current map is kept in an upper
+512-row VRAM half (texture pages with bits 11+14 set, which a 1 MiB PS1
+never addresses) and drawn whole, and the off-screen culling
+(`isOffScreen`, `isTileOffScreen`) widens by the margins. HUD and
+menus stay at their original 320x240 positions; 2D full-screen art
+(title, FMV) stays 4:3. 1:1 2D sprites are sampled at the PS1's
+top-left texel corner so packed font glyphs stay exact.
 
 `?renderer=soft` forces the software path (A/B comparison); headless node
 always uses it.
@@ -108,10 +118,11 @@ writable data symbol from the compiled objects (`llvm-nm`), generates
 `loadDynamicLibrary`) restore the startup bytes on each load. The audit
 found no `.bss` and only immutable compiler-generated statics in overlay
 TUs, so the extern symbol tables cover all mutable overlay state.
-The movie overlay (`mov`) is excluded: it re-initialises all of its state
-per play, and restoring its ~460 KB of stream/VLC buffers was observed to
-leave the naming screen's glyphs blank afterwards (root cause not yet
-identified). `?ovreset=0` disables the reset for A/B debugging.
+**Currently off by default** (`?ovreset=1` enables): restoring overlay
+`.data` was observed to blank the game's text (title menu, naming
+screen, dialogue) even with the movie overlay excluded; root cause not
+found. The stale-state problem it targets should be fixed in the
+overlay code itself once battles can be driven.
 
 ## Verified
 
