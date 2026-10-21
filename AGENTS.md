@@ -7,20 +7,18 @@ Digimon World (USA, SLUS_010.32) decompilation. Work happens on branch
 The USA executable is extracted to `disks/us/SLUS_010.32`
 (sha1 `31ec666b987d5b007dec40eecc4092d27ed9085b`).
 
-## Golden rule
+## Game-source policy (updated 2026-10-21)
 
-Game sources (`src/<overlay>/*.c`, `include/dw/*`, `external/psyq_headers`,
-`config/`) may only be edited with **mechanical, semantics-preserving
-`PSX_PTR` macro wraps** around hard-coded `0x80xxxxxx` address literals
-(e.g. `((char *)0x80052ae0)` -> `((char *)PSX_PTR(0x80052ae0))`); `PSX_PTR`
-is an identity cast on psx and defined in `include/dw/types.h`. The
-`psx/gcc` output must stay byte-identical — gate any such edit with
+Game sources (`src/<overlay>/*.c`, `include/dw/*`) MAY be edited or
+rewritten where that makes the web build work better (owner's call —
+the goal is a native browser port, not hardware emulation). Default to
+`#ifdef PLATFORM_WEB` guards so the `psx/gcc` output stays byte-identical
+to retail; gate with
 `sha1sum build/us/psx/gcc/SLUS_010.32 build/us/psx/gcc/*_REL.BIN` before
-and after. Everything else port-related goes into new files under
-`src/web/`, `include/emcc/`, `mk/`, `tools/`, `web/`. Behavioural
-differences between TUs (conflicting declarations of the same symbol) are
-handled with per-file `-D` renames in `mk/toolchain/emcc.mk` pointing at
-wrappers in `src/web/psx/call_fixups.c`.
+and after. If a change genuinely can't be guarded, say so in the commit.
+Port-only code still lives under `src/web/`, `include/emcc/`, `mk/`,
+`tools/`, `web/`. Declaration conflicts between TUs can now be fixed at
+the source instead of via `-D` renames in `mk/toolchain/emcc.mk`.
 
 ## Docker builds (Git Bash, from repo root)
 
