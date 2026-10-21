@@ -163,4 +163,31 @@
     } catch (e) { say('ERROR ' + e + ' ' + (e.stack || '').slice(0, 300)); }
     DW.done = true;
   };
+  /* warp through maps from..to via the game's own warp path, wait for each to
+   * load (tamer back in free-roam), stop at the first uncaught error */
+  DW.mapTour = async (opts = {}) => {
+    DW.log.length = 0; DW.tour = { ok: [], slow: [], cur: -1 };
+    try {
+      await DW.boot(opts.first === undefined ? 0 : opts.first);
+      Module._web_debug_partner_stats();
+      const list = opts.maps || Array.from({length: (opts.to === undefined ? 233 : opts.to) - (opts.from || 0) + 1}, (_, i) => (opts.from || 0) + i);
+      for (const m of list) {
+        if (DW.errs.length) { say('STOP: error before map ' + m); break; }
+        DW.tour.cur = m;
+        Module._web_debug_warp(m, opts.exit || 0, 1);
+        let t = 0, s;
+        while (t < (opts.maxWait || 9000)) {
+          await sleep(250); t += 250; s = DW.state();
+          if ((s.map & 0xff) === m && s.tamer === 0 && t >= 1500) break;
+        }
+        const ok = (s.map & 0xff) === m && s.tamer === 0;
+        (ok ? DW.tour.ok : DW.tour.slow).push(m);
+        if (!ok) say('map ' + m + ': did not settle (map=' + (s.map & 0xff) + ' tamer=' + s.tamer + ' game=' + s.game + ')');
+        if (opts.shotEvery && m % opts.shotEvery === 0) { DW.shot('map_' + String(m).padStart(3, '0')); await sleep(300); }
+        await sleep(opts.settle || 500);
+      }
+      say('tour done: ok=' + DW.tour.ok.length + ' slow=' + JSON.stringify(DW.tour.slow));
+    } catch (e) { say('ERROR ' + e + ' ' + (e.stack || '').slice(0, 300)); }
+    DW.done = true;
+  };
 })();

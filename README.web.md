@@ -192,6 +192,12 @@ overlay code itself once battles can be driven.
   screens, return to the field, and a second battle straight after (BTL
   overlay loaded twice, `?ovreset` off). Driven with `tools/web_drive.js`
   (`DW.battleScenario({fights: 2, weaken: 15000})`).
+- Map tour (`DW.mapTour`): every map that exists on the disc (0-233 except
+  the nonexistent ids 50 `YAKA01` and 61 `YAKA21`) loads through the game's own
+  warp path with no traps. A few (17, 51, 53, 78, 165, 220) start scripted
+  scenes and never reach free-roam within the tour's wait.
+- Fades/flashes/letterbox quads that cover the original 320x240 frame are
+  stretched over the grown margins (glgpu_tri).
 - Not yet driven: evolution, shops, fishing, tournaments (VS), the other
   overlays, saving after a battle, and the real (non-harness) intro.
 

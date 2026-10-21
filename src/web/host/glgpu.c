@@ -521,10 +521,38 @@ void glgpu_tri(const GlVtx v[3], const GlPrim *p)
 	       ((uint32_t)(p->textured ? 1 : 0) << 22) |
 	       ((uint32_t)(p->raw ? 1 : 0) << 23) |
 	       ((uint32_t)semi << 24);
+	/* A flat primitive that spans the whole original 320x240 screen (fades,
+	 * flashes, letterbox bars) is stretched over the grown margins too,
+	 * so effects don't stop at the old frame edge. */
+	int ex_l = 0, ex_r = 0, ex_t = 0, ex_b = 0;
+	if (b_tgt >= 0 && (scr_E > 0 || scr_F > 0) &&
+	    (!p->textured ||
+	     (abs(v[0].u - v[1].u) <= 4 && abs(v[0].u - v[2].u) <= 4 &&
+	      abs(v[0].v - v[1].v) <= 4 && abs(v[0].v - v[2].v) <= 4))) {
+		int y0 = 240 * b_tgt, minx = v[0].x, maxx = v[0].x, miny = v[0].y, maxy = v[0].y;
+		for (k = 1; k < 3; k++) {
+			if (v[k].x < minx) minx = v[k].x;
+			if (v[k].x > maxx) maxx = v[k].x;
+			if (v[k].y < miny) miny = v[k].y;
+			if (v[k].y > maxy) maxy = v[k].y;
+		}
+		if (minx <= 0 && maxx >= 320) { ex_l = scr_E; ex_r = scr_E; }
+		if (miny <= y0 && maxy >= y0 + 240) { ex_t = scr_F; ex_b = scr_F; }
+	}
 	for (k = 0; k < 3; k++) {
 		Vert *o = &verts[nverts++];
-		o->x = (float)v[k].x;
-		o->y = (float)v[k].y;
+		int vx = v[k].x, vy = v[k].y;
+		if (ex_l | ex_r) {
+			if (vx <= 0) vx -= ex_l;
+			else if (vx >= 320) vx += ex_r;
+		}
+		if (ex_t | ex_b) {
+			int y0 = 240 * b_tgt;
+			if (vy <= y0) vy -= ex_t;
+			else if (vy >= y0 + 240) vy += ex_b;
+		}
+		o->x = (float)vx;
+		o->y = (float)vy;
 		o->r = (float)v[k].r;
 		o->g = (float)v[k].g;
 		o->b = (float)v[k].b;
