@@ -102,7 +102,7 @@
   /* one wild battle: teleport onto an auto-talk NPC (retrying candidates),
    * mash buttons through the fight and the result screens until the game
    * state returns to 0. Returns 'won/ended', 'timeout' or 'no-trigger'. */
-  DW.fightOnce = async (n, maxMs, maxShots) => {
+  DW.fightOnce = async (n, maxMs, maxShots, opts = {}) => {
     let s = DW.state();
     const wild = s.ents.filter(e => e.i >= 2 && e.auto === 1);
     say('fight ' + n + ': candidates ' + JSON.stringify(wild.map(e => e.i + ':' + e.type.toString(16))));
@@ -126,6 +126,7 @@
       const key = s.game + '/' + s.tamer + '/' + s.map;
       if (key !== last) { say('fight ' + n + ': game=' + s.game + ' tamer=' + s.tamer + ' map=' + s.map); last = key; }
       if (s.game !== 0 && !inBattle) { inBattle = true; say('fight ' + n + ': BATTLE ENTERED'); }
+      if (inBattle && opts.weaken && !DW._weakened && performance.now() - t0 > opts.weaken) { DW._weakened = true; Module._web_debug_battle_weaken(); say('fight ' + n + ': enemies weakened'); }
       if (inBattle && Math.floor((performance.now() - t0) / 10000) > (DW._dumps || 0)) {
         DW._dumps = (DW._dumps || 0) + 1;
         say('fight ' + n + ' battle state: ' + DW.cap(() => Module._web_debug_battle()).join(' ; '));
@@ -151,7 +152,8 @@
       for (let n = 1; n <= (opts.fights || 1); n++) {
         DW.shot('field_before_' + n);
         await sleep(500);
-        const r = await DW.fightOnce(n, opts.maxMs || 90000, opts.maxShots || 12);
+        DW._weakened = false;
+        const r = await DW.fightOnce(n, opts.maxMs || 90000, opts.maxShots || 12, opts);
         say('fight ' + n + ' result: ' + r);
         if (r !== 'ended') break;
         Module._web_debug_partner_stats();

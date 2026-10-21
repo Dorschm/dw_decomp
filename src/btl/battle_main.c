@@ -3908,6 +3908,18 @@ void BTL_setCommandIconUV(DigimonEntity *digimon, POLY_FT4 *prim, uint8_t index)
 }
 
 #ifdef PLATFORM_WEB
+/* Web test hook: leave every enemy on 1 HP so a test battle can finish. */
+void web_debug_battle_weaken(void)
+{
+	int i;
+
+	for (i = 1; i <= ENEMY_COUNT; i++) {
+		Entity *e = ENTITY_TABLE[COMBAT_DATA_PTR->player.entityIds[i]];
+
+		((DigimonEntity *)e)->stats.current.currentHP = 1;
+	}
+}
+
 /* Web test hook (tools/web_drive.js): log the battle's AI/finisher state. */
 void web_debug_battle(void)
 {

@@ -170,9 +170,30 @@ overlay code itself once battles can be driven.
   `tools/wasm_safe_div.py` rewrites every i32 div/rem in the linked wasm
   (run from `mk/platform/web.mk`), e.g. `512 / (i * 13 / 4)` at i == 0 in
   tickHealingParticles.
+- PS1 RAM addresses (0x80xxxxxx) are *negative* as `int32_t`. Code such as
+  the EFE sub-effect spawn (`(int32_t)ctx >= (int32_t)modelPtr`, with
+  `modelPtr == NULL` for effects without a model) behaves differently with
+  wasm's positive addresses; the partner's attack effect never spawned its
+  hit sub-effect until this was fixed (`battle_effect.c`, `std_effect.c`,
+  `vs_effect.c`).
+- The 1 KiB scratchpad (`getScratchAddr`, 0x1f800000) is a real buffer
+  (`include/emcc/libetc.h`); non-void functions that fall off their end get
+  an explicit web `return` (retail leaves an unspecified `$v0`; where a
+  caller consumes it, e.g. `BTL_startEFE`, the original asm decides the
+  value); exact-fit string arrays (`MAIN_D_8012342C[16]`) need a NUL on web.
 - Overlay-source symbols that the PS1 link keeps in the *main* exe
   (`config/us/overlay_main_resident.txt`, made by `tools/overlay_resident.py`
   from the PS1 link map) are excluded from the overlay `.data` reset.
+
+## Verified end to end (browser, 2026-10-21)
+
+- Wild battles on WebGL: overlay load, intro banner, HUD, partner/enemy
+  fights, command menu, damage and finisher gauge, battle end, result
+  screens, return to the field, and a second battle straight after (BTL
+  overlay loaded twice, `?ovreset` off). Driven with `tools/web_drive.js`
+  (`DW.battleScenario({fights: 2, weaken: 15000})`).
+- Not yet driven: evolution, shops, fishing, tournaments (VS), the other
+  overlays, saving after a battle, and the real (non-harness) intro.
 
 ## Known gaps
 

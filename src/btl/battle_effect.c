@@ -4727,7 +4727,14 @@ void BTL_spawnEFESubEffect(void)
 			break;
 		}
 		EFE_SCRIPT_CONTEXT++;
+#ifdef PLATFORM_WEB
+		/* PS1 RAM addresses are negative as int32_t, so a NULL modelPtr (effect
+		 * without a 3D model) never satisfied this check there; on web the
+		 * addresses are positive and it always did, aborting every spawn */
+		if (EFE_DATA_ITERATOR->model->modelPtr != NULL && (uint32_t)EFE_SCRIPT_CONTEXT >= (uint32_t)EFE_DATA_ITERATOR->model->modelPtr) {
+#else
 		if ((int32_t)EFE_SCRIPT_CONTEXT >= (int32_t)EFE_DATA_ITERATOR->model->modelPtr) {
+#endif
 			BTL_returnFromEFESubroutine();
 			return;
 		}
