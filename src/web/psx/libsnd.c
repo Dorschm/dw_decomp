@@ -24,14 +24,11 @@
 #include <emscripten/console.h>
 
 #include <web/host/log.h>
-#include "spu.h"
+#include "mixer.h"
 
 extern int _spu_setInTransfer(int);
 extern int _spu_getInTransfer(void);
 
-#define SPU_VREG(ch, o)  (0x1F801C00 + (ch) * 0x10 + (o))
-
-static void svreg(int ofs, unsigned short v) { spu_write_reg16(0x1F801C00 + ofs, v); }
 
 /* ---------------- module globals (libsnd.data.s equivalents) -------- */
 
@@ -74,9 +71,11 @@ typedef struct {
     short pbmin, pbmax;
     unsigned short adsr1, adsr2;
     unsigned long addr;
+    unsigned char center, cshift; /* tone center note/fine (pitch bend) */
 } SvmVoice;
 
 static SvmVoice _svm_voice[24];
+extern void web_audio_seq_note(void);
 static unsigned long _spu_keystat_ext;
 
 /* _svm_cur: current-tone context filled by VSetUp/SelectToneAndVag */
@@ -207,43 +206,58 @@ static unsigned long vag_addr_of(short vabId, short vag)
     return (unsigned long)a << 3;   /* stored absolute >>3 by openHead */
 }
 
-/* glabel note2pitch2 (libsnd): pitch for (note,fine) vs the tone's
- * center/shift, using the same 2^(x/1536) construction as libspu's
- * _spu_note2pitch. */
+/* glabel _svm_ptable (libsnd.data.s): pitch for semitone r (row) and
+ * 1/16-semitone step c (column) of the octave above 0x1000. */
+static const unsigned short _svm_ptable[12 * 16] = {
+    0x1000, 0x100E, 0x101D, 0x102C, 0x103B, 0x104A, 0x1059, 0x1068,
+    0x1078, 0x1087, 0x1096, 0x10A5, 0x10B5, 0x10C4, 0x10D4, 0x10E3,
+    0x10F3, 0x1103, 0x1113, 0x1122, 0x1132, 0x1142, 0x1152, 0x1162,
+    0x1172, 0x1182, 0x1193, 0x11A3, 0x11B3, 0x11C4, 0x11D4, 0x11E5,
+    0x11F5, 0x1206, 0x1216, 0x1227, 0x1238, 0x1249, 0x125A, 0x126B,
+    0x127C, 0x128D, 0x129E, 0x12AF, 0x12C1, 0x12D2, 0x12E3, 0x12F5,
+    0x1306, 0x1318, 0x132A, 0x133C, 0x134D, 0x135F, 0x1371, 0x1383,
+    0x1395, 0x13A7, 0x13BA, 0x13CC, 0x13DE, 0x13F1, 0x1403, 0x1416,
+    0x1428, 0x143B, 0x144E, 0x1460, 0x1473, 0x1486, 0x1499, 0x14AC,
+    0x14BF, 0x14D3, 0x14E6, 0x14F9, 0x150D, 0x1520, 0x1534, 0x1547,
+    0x155B, 0x156F, 0x1583, 0x1597, 0x15AB, 0x15BF, 0x15D3, 0x15E7,
+    0x15FB, 0x1610, 0x1624, 0x1638, 0x164D, 0x1662, 0x1676, 0x168B,
+    0x16A0, 0x16B5, 0x16CA, 0x16DF, 0x16F4, 0x170A, 0x171F, 0x1734,
+    0x174A, 0x175F, 0x1775, 0x178B, 0x17A1, 0x17B6, 0x17CC, 0x17E2,
+    0x17F9, 0x180F, 0x1825, 0x183B, 0x1852, 0x1868, 0x187F, 0x1896,
+    0x18AC, 0x18C3, 0x18DA, 0x18F1, 0x1908, 0x191F, 0x1937, 0x194E,
+    0x1965, 0x197D, 0x1995, 0x19AC, 0x19C4, 0x19DC, 0x19F4, 0x1A0C,
+    0x1A24, 0x1A3C, 0x1A55, 0x1A6D, 0x1A85, 0x1A9E, 0x1AB7, 0x1ACF,
+    0x1AE8, 0x1B01, 0x1B1A, 0x1B33, 0x1B4C, 0x1B66, 0x1B7F, 0x1B98,
+    0x1BB2, 0x1BCC, 0x1BE5, 0x1BFF, 0x1C19, 0x1C33, 0x1C4D, 0x1C67,
+    0x1C82, 0x1C9C, 0x1CB7, 0x1CD1, 0x1CEC, 0x1D07, 0x1D22, 0x1D3D,
+    0x1D58, 0x1D73, 0x1D8E, 0x1DA9, 0x1DC5, 0x1DE0, 0x1DFC, 0x1E18,
+    0x1E34, 0x1E50, 0x1E6C, 0x1E88, 0x1EA4, 0x1EC1, 0x1EDD, 0x1EFA,
+    0x1F16, 0x1F33, 0x1F50, 0x1F6D, 0x1F8A, 0x1FA7, 0x1FC5, 0x1FE2,
+};
+
+/* glabel note2pitch2 (libsnd): pitch for (note, fine) against the
+ * current tone's center note and center fine-tune (_svm_cur.center/
+ * .shift = VagAtr center/shift). fine+shift is in 1/128 semitone; /8
+ * gives the table column, carrying a semitone at 16. Octave 5 relative
+ * to center is unity (0x1000). */
 static unsigned short note2pitch2(unsigned char note, unsigned char fine)
 {
-    long d = (((long)_svm_cur.center << 7) + _svm_cur.shift)
-           - (((long)note << 7) + fine);
-    long ad = d < 0 ? -d : d;
-    int oct = (int)(ad / 1536);
-    int frac = (int)(ad - oct * 1536);
-    long base, a0, a3, t1;
-    int n, rem, i;
+    short f = (short)(fine + _svm_cur.shift);
+    short col, carry = 0, n, oct, semi, sh;
+    unsigned short pitch;
 
-    if (d < 0) {
-        if (frac != 0) { oct++; frac = 1536 - frac; }
-        base = 0x1000 >> oct;
-    } else {
-        base = 0x1000 << oct;
-    }
-    base &= 0xFFFF;
-
-    a0 = 0x103B;
-    t1 = base * a0;
-    a3 = base << 12;
-    n = frac >> 5;
-    rem = frac & 0x1F;
-    for (i = 0; i < n; i++) {
-        a3 = base * a0;
-        a0 = ((a0 * 65 * 16 - a0) * 4 - a0) >> 12;
-        t1 = base * a0;
-    }
-    {
-        long v = a3 + (((t1 - a3) >> 5) * rem);
-        long pitch = v >> 12;
-        if (pitch >= 0x4000) pitch = 0x3FFF;
-        return (unsigned short)pitch;
-    }
+    if (f < 0) f += 7;
+    col = f >> 3;
+    if (col >= 16) { carry = 1; col -= 16; }
+    n = (short)(note + 0x3C - _svm_cur.center + carry);
+    oct = n / 12;
+    semi = n - oct * 12;
+    if (semi < 0) { semi += 12; oct--; } /* asm would index before the table */
+    pitch = _svm_ptable[semi * 16 + col];
+    sh = oct - 5;
+    if (sh > 0) pitch = (unsigned short)(pitch << sh);
+    else if (sh < 0) pitch = (unsigned short)(pitch >> -sh);
+    return pitch;
 }
 
 /* glabel note2pitch (libsnd): public note->pitch for a given tone */
@@ -279,13 +293,10 @@ static void _SsVmKeyOnNow(short on_off, unsigned short pitch)
     (void)on_off;
     SvmVoice *sv = &_svm_voice[v];
 
-    svreg(v * 0x10 + 0, (unsigned short)(sv->voll << 7));
-    svreg(v * 0x10 + 2, (unsigned short)(sv->volr << 7));
-    svreg(v * 0x10 + 4, pitch);
-    svreg(v * 0x10 + 6, (unsigned short)(_svm_cur.addr >> 3));
-    svreg(v * 0x10 + 8, _svm_cur.adsr1);
-    svreg(v * 0x10 + 0xA, _svm_cur.adsr2);
-    svreg(v * 0x10 + 0xE, (unsigned short)(_svm_cur.addr >> 3));
+    mix_voice_volume(v, (int16_t)(sv->voll << 7), (int16_t)(sv->volr << 7));
+    mix_voice_pitch(v, pitch);
+    mix_voice_sample(v, _svm_cur.addr);
+    mix_voice_adsr(v, _svm_cur.adsr1, _svm_cur.adsr2);
     SpuSetKey(SPU_ON, 1 << v);
 }
 
@@ -390,6 +401,8 @@ static short _SsVmKeyOn(short packed, short vabId, short prog,
             sv->addr = vag_addr;
             sv->adsr1 = va.adsr1;
             sv->adsr2 = va.adsr2;
+            sv->center = va.center;
+            sv->cshift = va.shift;
             sv->voll = vl;
             sv->volr = vr;
             sv->pbend = 0;
@@ -408,6 +421,7 @@ static short _SsVmKeyOn(short packed, short vabId, short prog,
                         seq_tick_count, packed, voice, prog, sel[i],
                         note, vel, p, (unsigned)vag_addr);
                 }
+                web_audio_seq_note();
                 _SsVmKeyOnNow(1, p);
             }
         }
@@ -529,8 +543,7 @@ static void _SsVmSetSeqVol(short packed, unsigned short l, unsigned short r,
     (void)now;
     for (i = 0; i < _SsVmMaxVoice; i++) {
         if (_svm_voice[i].used && _svm_voice[i].seq == packed) {
-            svreg(i * 0x10 + 0, (unsigned short)(l << 7));
-            svreg(i * 0x10 + 2, (unsigned short)(r << 7));
+            mix_voice_volume(i, (int16_t)(l << 7), (int16_t)(r << 7));
             _svm_voice[i].voll = l;
             _svm_voice[i].volr = r;
         }
@@ -604,9 +617,11 @@ void _SsSetPitchBend(short seq, short tr)
             long cents = (bend * semi) >> 13; /* semitones*128 units */
             long nf = ((long)_svm_voice[i].note << 7) + cents;
             unsigned short p;
-            _svm_cur.center = _svm_voice[i].vabB; /* placeholder */
-            p = note2pitch2(_svm_voice[i].note, (unsigned char)(nf & 0x7F));
-            svreg(i * 0x10 + 4, p);
+            if (nf < 0) nf = 0;
+            _svm_cur.center = _svm_voice[i].center;
+            _svm_cur.shift = _svm_voice[i].cshift;
+            p = note2pitch2((unsigned char)(nf >> 7), (unsigned char)(nf & 0x7F));
+            mix_voice_pitch(i, p);
         }
     }
 }
@@ -1159,8 +1174,7 @@ void SsQuit(void)
 /* glabel SsSetMVol */
 void SsSetMVol(short left, short right)
 {
-    svreg(0x180, (unsigned short)(left * 129));
-    svreg(0x182, (unsigned short)(right * 129));
+    mix_master_volume((int16_t)(left * 129), (int16_t)(right * 129));
 }
 
 /* ---------------- VAB ---------------- */
@@ -1292,6 +1306,12 @@ short SsVabTransBody(unsigned char *vag_addr, short vabId)
     SpuSetTransferStartAddr(_svm_vab_start[vabId]);
     SpuWrite(vag_addr, _svm_vab_total[vabId]);
     _svm_vab_used[vabId] = 1;
+    /* decode every VAG of the bank to PCM now, not at first key-on */
+    {
+        int i;
+        for (i = 1; i <= (_svm_vab_vh[vabId]->vs & 0xFF); i++)
+            mix_sample_prepare(vag_addr_of(vabId, (short)i));
+    }
     return vabId;
 }
 
@@ -1370,6 +1390,8 @@ short SsUtKeyOnV(short voice, short vabId, short prog, short tone,
         sv->addr = addr;
         sv->adsr1 = va.adsr1;
         sv->adsr2 = va.adsr2;
+        sv->center = va.center;
+        sv->cshift = va.shift;
         sv->voll = voll;
         sv->volr = volr;
         sv->used = 1;
@@ -1435,8 +1457,7 @@ short SsUtAutoVol(short vabId_voice, short voll, short volr, short delta)
     (void)delta;
     if ((unsigned short)vabId_voice >= 0x18) return -1;
     _autovol = 1;
-    svreg(vabId_voice * 0x10 + 0, (unsigned short)(voll << 7));
-    svreg(vabId_voice * 0x10 + 2, (unsigned short)(volr << 7));
+    mix_voice_volume(vabId_voice, (int16_t)(voll << 7), (int16_t)(volr << 7));
     _svm_voice[vabId_voice].voll = voll;
     _svm_voice[vabId_voice].volr = volr;
     return 0;

@@ -55,8 +55,7 @@ static int frame_cap;
  * (735 = 44100/60 = 4 * 183.75; the fractional sample is accumulated
  * so long-run timing is exact).
  */
-extern void spu_render(int16_t *out, int frames);
-extern void spu_reset(void);
+#include "../psx/mixer.h"
 extern void SsSeqCalledTbyT(void);
 extern long web_seq_tick_rate(void);
 
@@ -114,6 +113,27 @@ void web_audio_capture(const char *path, int seconds)
 					seconds, path);
 }
 
+/* harness hook: arm a capture that starts at the first sequencer
+ * note-on (libsnd calls web_audio_seq_note), so captures of the BGM
+ * line up across runs regardless of wall-clock timing */
+static char seq_cap_path[256];
+static int seq_cap_secs;
+
+EMSCRIPTEN_KEEPALIVE
+void web_audio_capture_on_seq(const char *path, int seconds)
+{
+	strncpy(seq_cap_path, path, sizeof(seq_cap_path) - 1);
+	seq_cap_secs = seconds;
+}
+
+void web_audio_seq_note(void)
+{
+	if (seq_cap_secs > 0) {
+		web_audio_capture(seq_cap_path, seq_cap_secs);
+		seq_cap_secs = 0;
+	}
+}
+
 void web_audio_pump(void)
 {
 	static double tick_pos;
@@ -137,13 +157,13 @@ void web_audio_pump(void)
 		if (next > total)
 			next = total;
 		if (next > done) {
-			spu_render(audio_frame + done * 2, next - done);
+			mix_render(audio_frame + done * 2, next - done);
 			done = next;
 		}
 		SsSeqCalledTbyT();
 	}
 	if (done < total)
-		spu_render(audio_frame + done * 2, total - done);
+		mix_render(audio_frame + done * 2, total - done);
 	tick_pos -= total;
 
 	if (audio_ok) {
@@ -166,6 +186,12 @@ static void audio_init(void)
 {
 	SDL_AudioSpec want, got;
 
+	/* main() only inits video/events; the audio subsystem must be
+	 * brought up here or OpenAudioDevice fails (it does under node,
+	 * which has no Web Audio — the pump still runs for capture) */
+	if (SDL_InitSubSystem(SDL_INIT_AUDIO) != 0)
+		emscripten_console_logf("audio: SDL audio init failed (%s)",
+					SDL_GetError());
 	SDL_zero(want);
 	want.freq = 44100;
 	want.format = AUDIO_S16SYS;
@@ -317,7 +343,7 @@ int main(void)
 		emscripten_console_logf("web: no renderer (%s); running "
 					"headless", SDL_GetError());
 	audio_init();
-	spu_reset();
+	mix_reset();
 	web_overlay_snapshot_all();
 	emscripten_console_log("web: SDL up, calling dw_main()");
 	return dw_main();

@@ -11,7 +11,7 @@ WASM := $(BUILD_DIR)/dw.wasm
 LDFLAGS := -O2 -sUSE_SDL=2 -sMAX_WEBGL_VERSION=2 -sASYNCIFY -lidbfs.js \
 	-sALLOW_MEMORY_GROWTH=1 -sINITIAL_MEMORY=64MB \
 	-sEXPORTED_RUNTIME_METHODS=FS,ccall,cwrap \
-	-sEXPORTED_FUNCTIONS=_main,_web_dump_display,_web_dump_vram,_web_gpu_stats,_web_pad_inject,_web_pad_set_touch,_web_debug_state,_web_audio_capture,_web_audio_resume,_web_mc_reload,_web_perf_report,_web_gs_trace,_web_overlay_checksum,_web_entity_dump,_web_debug_warp,_web_gl_probe \
+	-sEXPORTED_FUNCTIONS=_main,_web_dump_display,_web_dump_vram,_web_gpu_stats,_web_pad_inject,_web_pad_set_touch,_web_debug_state,_web_audio_capture,_web_audio_capture_on_seq,_web_audio_resume,_web_mc_reload,_web_perf_report,_web_gs_trace,_web_overlay_checksum,_web_entity_dump,_web_debug_warp,_web_gl_probe \
 	-sEMULATE_FUNCTION_POINTER_CASTS=1 \
 	-sNO_EXIT_RUNTIME=1
 
@@ -38,13 +38,13 @@ $(GTE_TEST): src/web/test/gte_test.c src/web/psx/gte.c src/web/psx/gte.h
 	@mkdir -p $(dir $@)
 	$(CC) -O1 -Isrc -o $@ src/web/test/gte_test.c src/web/psx/gte.c
 
-# Standalone SPU decode test - spu.c only. Needs
+# Standalone mixer decode test - mixer.c only. Needs
 # .tmp_test/vag_ss3.h from tools/vag_decode.py.
-SPU_TEST := $(BUILD_DIR)/spu_test.js
-spu_test: $(SPU_TEST)
+MIXER_TEST := $(BUILD_DIR)/mixer_test.js
+mixer_test: $(MIXER_TEST)
 
-$(SPU_TEST): src/web/test/spu_test.c src/web/psx/spu.c src/web/psx/spu.h
+$(MIXER_TEST): src/web/test/mixer_test.c src/web/psx/mixer.c src/web/psx/mixer.h
 	@mkdir -p $(dir $@)
-	$(CC) -O1 -Isrc -o $@ src/web/test/spu_test.c src/web/psx/spu.c
+	$(CC) -O1 -Isrc -o $@ src/web/test/mixer_test.c src/web/psx/mixer.c
 
 generate:

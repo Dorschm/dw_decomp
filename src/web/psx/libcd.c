@@ -39,9 +39,7 @@ static int read_log_count;
 
 extern int VSync(int mode);
 extern unsigned int web_vsync_count;
-extern void spu_cd_input(const int16_t *stereo, int frames);
-extern void spu_write_reg16(uint32_t addr, uint16_t val);
-extern uint16_t spu_read_reg16(uint32_t addr);
+#include "mixer.h"
 static void st_stream_arm(void);
 
 /* CD controller output attenuation matrix (ATV0..3): L = l*v0 + r*v1,
@@ -49,26 +47,25 @@ static void st_stream_arm(void);
 static uint8_t cd_atv[4] = { 0x80, 0x00, 0x80, 0x00 };
 
 /* glabel CD_initvol (asm/us/main/psyq/libcd.s): if the SPU main volume
- * regs are still zero install 0x3FFF, always set CD input volume to
- * 0x3FFF (or the 0x1DBA value), SPUCNT = 0xC001 (SPU on, unmuted, CD
- * audio enable), and the CD controller ATV matrix to normal stereo. */
+ * is still zero install 0x3FFF, always set CD input volume to 0x3FFF
+ * (or the current main volume), SPUCNT = 0xC001 (SPU on, unmuted, CD
+ * audio enable — the mixer always mixes CD), and the CD controller ATV
+ * matrix to normal stereo. The asm reads the 0x1DB8/0x1DBA current
+ * main-volume registers; the mixer's master volume is that value. */
 static void cd_initvol(void)
 {
 	uint16_t v0;
 
-	if (spu_read_reg16(0x1F801DB8) != 0) {
+	if (mix_get_master_l() != 0) {
 		v0 = 0x3FFF;
 	} else {
-		v0 = spu_read_reg16(0x1F801DBA);
+		v0 = (uint16_t)mix_get_master_r();
 		if (v0 == 0) {
 			v0 = 0x3FFF;
-			spu_write_reg16(0x1F801D80, v0); /* main vol L */
-			spu_write_reg16(0x1F801D82, v0); /* main vol R */
+			mix_master_volume((int16_t)v0, (int16_t)v0);
 		}
 	}
-	spu_write_reg16(0x1F801DB0, v0);	   /* CD audio vol L */
-	spu_write_reg16(0x1F801DB2, v0);	   /* CD audio vol R */
-	spu_write_reg16(0x1F801DAA, 0xC001);	   /* SPUCNT */
+	mix_cd_volume((int16_t)v0, (int16_t)v0);
 	cd_atv[0] = 0x80;
 	cd_atv[1] = 0x00;
 	cd_atv[2] = 0x80;
@@ -574,7 +571,7 @@ static void xa_push(int16_t *stereo, int frames)
 		stereo[i * 2] = (int16_t)lo;
 		stereo[i * 2 + 1] = (int16_t)ro;
 	}
-	spu_cd_input(stereo, frames);
+	mix_cd_input(stereo, frames);
 }
 
 static void xa_decode_sector(const uint8_t *sec)
