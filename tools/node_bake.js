@@ -117,7 +117,9 @@ async function boot(map) {
 // is walked in 8 directions and its pixels are cropped every frame.
 //   node tools/node_bake.js [out_dir]       -> <out>/tamer.png + tamer.json
 const CH = process.argv[5] || path.resolve(ROOT, '..', 'dw_remake', 'client', 'assets', 'chars');
-const FW = 64, FH = 80, AX = 32, AY = 72;   // frame size and feet anchor inside a frame
+const ENT = process.env.BAKE_ENTITY === '1';           // 1 = bake the partner (entity 1) instead of the tamer
+const NAME = ENT ? 'partner' : 'tamer';
+const FW = ENT ? 96 : 64, FH = ENT ? 96 : 80, AX = FW / 2, AY = FH - 8;   // frame size and feet anchor inside a frame
 const DIRS = [['down', PAD.down], ['down-left', PAD.down | PAD.left], ['left', PAD.left], ['up-left', PAD.up | PAD.left],
   ['up', PAD.up], ['up-right', PAD.up | PAD.right], ['right', PAD.right], ['down-right', PAD.down | PAD.right]];
 
@@ -175,7 +177,7 @@ const sig = (a) => { let h = 0; for (let i = 0; i < a.length; i += 3) h = (h * 3
   // arrival is next to the left-edge warp strip: walk east into the open middle first
   M._web_pad_set_touch(PAD.right); await sleep(3600); M._web_pad_set_touch(0); await sleep(1200);
   M._web_set_hide_map(1);
-  M._web_set_hide_entities(0x3fe);              // draw only the tamer (entity 0): hides the partner and NPCs
+  M._web_set_hide_entities(ENT ? 0x3fd : 0x3fe);              // draw only the tamer (entity 0): hides the partner and NPCs
   const rows = [], idle = [];
   for (const pass of [1, 2]) for (let di = 0; di < DIRS.length; di++) {
     if (pass === 2 && rows[di] && rows[di].length >= 8 && idle[di]) continue;     // second pass retries gaps
@@ -213,8 +215,8 @@ const sig = (a) => { let h = 0; for (let i = 0; i < a.length; i += 3) h = (h * 3
   rows.forEach((r, ri) => r.forEach((f, ci) => blit(f, ci, ri)));
   idle.forEach((f, ci) => { if (f) blit(f, ci, DIRS.length); });
   fs.mkdirSync(CH, { recursive: true });
-  fs.writeFileSync(path.join(CH, 'tamer.png'), png(SW, SH, sheet));
-  fs.writeFileSync(path.join(CH, 'tamer.json'), JSON.stringify({ fw: FW, fh: FH, anchor: [AX, AY], dirs: DIRS.map((d) => d[0]),
+  fs.writeFileSync(path.join(CH, NAME + '.png'), png(SW, SH, sheet));
+  fs.writeFileSync(path.join(CH, NAME + '.json'), JSON.stringify({ fw: FW, fh: FH, anchor: [AX, AY], dirs: DIRS.map((d) => d[0]),
     walk: rows.map((r) => r.length), idleRow: DIRS.length, fps: 12 }));
   console.error('baked ->', CH, 'sheet', SW + 'x' + SH);
   process.exit(0);
