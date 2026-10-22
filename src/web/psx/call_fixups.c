@@ -669,3 +669,39 @@ int16_t *web_map_warps(void)
 {
 	return MAP_WARPS;
 }
+
+/* ---- map overlay objects + depth for the remake ----------------------
+ * LocalMapObject (14 bytes): texX texY someX someY someZ (int16) width
+ * height clut transparency (int8). Instances live in MAP_TILE_DATA+700
+ * (34 bytes each, see web_map_tile_rgba). VRAM is exposed so the extractor
+ * can decode sprite pixels with the engine's own tpage/clut rules. */
+extern char LOCAL_MAP_OBJECTS[];
+extern int16_t MAP_OBJECT_INSTANCE_COUNT;
+extern uint32_t gte_regs[];
+
+char *web_map_obj_defs(void)
+{
+	return LOCAL_MAP_OBJECTS;
+}
+
+int32_t web_map_obj_count(void)
+{
+	return MAP_OBJECT_INSTANCE_COUNT;
+}
+
+uint8_t *web_map_obj_insts(void)
+{
+	return (uint8_t *)MAP_TILE_DATA + 700;
+}
+
+uint16_t *web_vram(void)
+{
+	return &gpu_vram[0][0];
+}
+
+/* SZ3 of the last projection (web_net_project), in the game's order units
+ * (map objects use orderValue = SZ3 >> 4 clamped to 0x23..0xff6) */
+int32_t web_net_depth(void)
+{
+	return (int32_t)(gte_regs[19] >> 4);
+}
