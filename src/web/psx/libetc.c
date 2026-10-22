@@ -70,6 +70,15 @@ static void perf_report(void)
 EMSCRIPTEN_KEEPALIVE
 void web_perf_report(void) { perf_report(); }
 
+/* headless tools (dw_decomp/tools) run the engine faster than real time: the game counts frames, not seconds */
+static double frame_ms = 1000.0 / 60.0;
+
+EMSCRIPTEN_KEEPALIVE
+void web_set_speed(int speed)
+{
+	frame_ms = (1000.0 / 60.0) / (speed < 1 ? 1 : speed);
+}
+
 int VSync(int mode)
 {
 	int wait;
@@ -80,14 +89,14 @@ int VSync(int mode)
 
 	wait = (mode > 0) ? mode : 1;
 	if (next_frame_ms == 0.0 || next_frame_ms < emscripten_get_now())
-		next_frame_ms = emscripten_get_now() + 1000.0 / 60.0;
+		next_frame_ms = emscripten_get_now() + frame_ms;
 
 	while (wait-- > 0) {
 		pad_spin = 0;
 		delay = next_frame_ms - emscripten_get_now();
 		if (delay > 0)
 			emscripten_sleep((unsigned int)delay);
-		next_frame_ms += 1000.0 / 60.0;
+		next_frame_ms += frame_ms;
 		web_vsync_count++;
 		if ((web_vsync_count % 300u) == 0u)
 			emscripten_console_logf("vsync: %u frames",

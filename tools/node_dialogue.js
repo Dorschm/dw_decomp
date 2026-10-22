@@ -67,6 +67,7 @@ async function runSection(sid, slot) {
   let battle = false;
   const hardStop = Date.now() + 120000;
   let seen = seq0, idleSince = 0;
+  const startT = Date.now();
   let deadline = Date.now() + 14000, stuck = false;
   while (Date.now() < deadline) {
     await sleep(120);
@@ -88,6 +89,7 @@ async function runSection(sid, slot) {
     if (M._web_script_idle() === 1) { idleSince ||= Date.now(); if (Date.now() - idleSince > 700) break; } else idleSince = 0;
     M._web_pad_set_touch(PAD.cross); await sleep(70); M._web_pad_set_touch(0);
     if (pages.length > 40) break;
+    if (!pages.length && !battle && Date.now() - startT > 6000) break;           // a silent script (cutscene, shop menu...)
   }
   return { pages, battle, stuck };
 }
@@ -99,7 +101,9 @@ if (require.main === module) (async () => {
   const s0 = await boot(1);
   console.error('boot done:', JSON.stringify(s0));
   if (s0.tamer !== 0 || s0.map < 1) { console.error('boot did not reach free roam; exiting 3 (retry)'); process.exit(3); }
+  M._web_set_speed(+(process.env.SPEED || 4));                 // the game counts frames: run it faster than real time after the boot macro
   const list = process.env.MAPS ? process.env.MAPS.split(',').map(Number) : Array.from({ length: to - from + 1 }, (_, i) => from + i);
+  if (process.env.REVERSE) list.reverse();
   let total = 0;
   for (const m of list) {
     if (NO_FILES.includes(m)) continue;
@@ -110,7 +114,7 @@ if (require.main === module) (async () => {
     try { coll = fs.readFileSync(path.join(dir, 'coll.bin')); } catch (e) { /* none */ }
     const secs = new Map();                          // sid -> slot (-1 = tile trigger)
     for (const n of npcs) if (n.sid && n.active !== 0 && !secs.has(n.sid)) secs.set(n.sid, n.slot);      // only NPCs the script spawns at the start of a game
-    if (coll) for (let i = 0; i < coll.length; i++) { const v = coll[i]; if (v > 50 && v < 110 && !secs.has(v)) secs.set(v, -1); }
+    if (coll) for (let i = 0; i < coll.length; i++) { const v = coll[i]; if (v >= 80 && v < 110 && !secs.has(v)) secs.set(v, -1); }
     if (!secs.size) continue;
     // resume support: a section that took the engine out of the overworld (battle, wedge) killed the last run;
     // 'dialogue.cur' still names it, so it is skipped now. Pages gathered so far live in 'dialogue.partial.json'.
@@ -119,6 +123,7 @@ if (require.main === module) (async () => {
     try { skip = JSON.parse(fs.readFileSync(skipF, 'utf8')); } catch (e) { /* none */ }
     try { out = JSON.parse(fs.readFileSync(partF, 'utf8')); } catch (e) { /* none */ }
     if (fs.existsSync(curF)) { skip.push(+fs.readFileSync(curF, 'utf8')); fs.writeFileSync(skipF, JSON.stringify(skip)); fs.unlinkSync(curF); }
+    console.error(`map ${m}: ${secs.size} sections`);
     if (!(await settleOn(m))) { console.error(`map ${m}: did not settle`); continue; }
     for (const [sid, slot] of secs) {
       if (skip.includes(sid) || out[sid]) continue;
@@ -128,7 +133,9 @@ if (require.main === module) (async () => {
       }
       fs.writeFileSync(curF, String(sid));
       let pages;
+      const ts = Date.now();
       try { pages = await runSection(sid, slot); } catch (e) { pages = null; }
+      console.error(`  map ${m} section ${sid}: ${pages ? pages.pages.length + ' pages' + (pages.battle ? ' +battle' : '') : 'not started'} in ${((Date.now() - ts) / 1000).toFixed(1)}s game=${state().game}`);
       if (pages && (pages.pages.length || pages.battle)) {
         out[sid] = pages; total += pages.pages.length; fs.writeFileSync(partF, JSON.stringify(out));
       }
@@ -138,7 +145,7 @@ if (require.main === module) (async () => {
         fs.unlinkSync(curF); process.exit(4);
       }
       // leave any menu/script behind before the next one
-      for (let k = 0; k < 4 && M._web_script_idle() !== 1; k++) await tap(PAD.cross, 70, 200);
+      for (let k = 0; k < 40 && M._web_script_idle() !== 1; k++) await tap(PAD.cross, 70, 200);   // let the script finish before the next one
       if (state().game === 0) fs.unlinkSync(curF);                     // finished cleanly; otherwise the next run skips it
     }
     if (Object.keys(out).length) fs.writeFileSync(path.join(dir, 'dialogue.json'), JSON.stringify(out));
