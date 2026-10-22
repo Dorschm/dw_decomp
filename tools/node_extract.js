@@ -193,6 +193,14 @@ function dumpMap(m, index) {
   const wp = M._web_map_warps() >> 1;
   fs.writeFileSync(path.join(dir, 'nav.json'), JSON.stringify({ w: w * 128, h: h * 128, pts, up, warps: Array.from(M.HEAP16.subarray(wp, wp + 60)) }));
   dumpObjects(dir);
+  // map entities (NPC Digimon, chests...) placed by the map script; world coords as in nav.json
+  const ents = [];
+  for (let i = 0; i < 10; i++) {
+    const q = M._web_ent_info(i) >> 2;
+    if (!M.HEAP32[q]) continue;
+    ents.push({ i, type: M.HEAP32[q + 1], x: M.HEAP32[q + 2], y: M.HEAP32[q + 3], z: M.HEAP32[q + 4], onMap: M.HEAP32[q + 5], sid: M.HEAP32[q + 7], auto: M.HEAP32[q + 8] });
+  }
+  fs.writeFileSync(path.join(dir, 'entities.json'), JSON.stringify(ents));
   index.maps[m] = { w, h, tiles };
   return true;
 }

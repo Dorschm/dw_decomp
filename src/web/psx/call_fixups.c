@@ -705,3 +705,44 @@ int32_t web_net_depth(void)
 {
 	return (int32_t)(gte_regs[19] >> 4);
 }
+
+/* ---- map entities (NPCs, chests, signs) for the remake ----
+ * out[0]=valid out[1]=type(Digimon id) out[2..4]=world x,y,z (posData[0]
+ * world-matrix translation, same space as web_net_project) out[5]=onMap
+ * out[6]=onScreen out[7]=scriptId out[8]=autotalk (entities i>=2 only) */
+int32_t *web_ent_info(int32_t i)
+{
+	extern char *ENTITY_TABLE[];
+	extern unsigned char PSX_RAM[0x200000];
+	static int32_t out[10];
+	char *e;
+	uint8_t *pd;
+	uintptr_t pv, ram = (uintptr_t)PSX_RAM;
+	int k;
+
+	for (k = 0; k < 10; k++)
+		out[k] = 0;
+	if (i < 0 || i >= 10)
+		return out;
+	e = ENTITY_TABLE[i];
+	if (e == NULL)
+		return out;
+	pd = *(uint8_t **)(e + 4);
+	if (pd == NULL)
+		return out;
+	pv = (uintptr_t)pd;
+	if (pv >= ram && pv < ram + 0x200000)
+		pd = PSX_RAM + (pv & 0x1fffff);
+	else if ((pv >> 28) == 0x8)
+		pd = PSX_RAM + (pv & 0x1fffff);
+	out[0] = 1;
+	out[1] = *(int32_t *)(e + 0);
+	out[2] = *(int32_t *)(pd + 72);
+	out[3] = *(int32_t *)(pd + 76);
+	out[4] = *(int32_t *)(pd + 80);
+	out[5] = *(int8_t *)(e + 52);
+	out[6] = *(int8_t *)(e + 53);
+	out[7] = i >= 2 ? (int32_t)(uint8_t)e[101] : -1;
+	out[8] = i >= 2 ? (int32_t)(uint8_t)e[102] : -1;
+	return out;
+}
