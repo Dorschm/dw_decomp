@@ -207,6 +207,7 @@ function dumpMap(m, index) {
     ents.push({ i, type: M.HEAP32[q + 1], x: M.HEAP32[q + 2], y: M.HEAP32[q + 3], z: M.HEAP32[q + 4], onMap: M.HEAP32[q + 5], sid: M.HEAP32[q + 7], auto: M.HEAP32[q + 8] });
   }
   fs.writeFileSync(path.join(dir, 'entities.json'), JSON.stringify(ents));
+  if (process.env.DEBUG_ENT) console.error('ENT map', m, JSON.stringify(ents));
   index.maps[m] = { w, h, tiles };
   return true;
 }
@@ -228,7 +229,7 @@ function dumpMap(m, index) {
     let t = 0, s;
     while (t < 9000) { await sleep(250); t += 250; s = state(); if ((s.map & 0xff) === m && t >= 1500) break; }
     if ((s.map & 0xff) !== m) { skipped.push(m); console.error(`map ${m}: did not settle (map=${s.map & 0xff})`); continue; }
-    await sleep(600);
+    await sleep(process.env.DEBUG_ENT ? 6000 : 600);
     if (dumpMap(m, index)) ok.push(m); else skipped.push(m);
     if (ok.length % 5 === 0) fs.writeFileSync(idxPath, JSON.stringify(index));
     if (m % 10 === 0) console.error(`map ${m} done (${ok.length} ok, ${skipped.length} skipped)`);
