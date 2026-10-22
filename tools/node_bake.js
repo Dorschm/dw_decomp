@@ -131,7 +131,11 @@ function grab() {
   const W = M._web_grab_w(), H = 240, ptr = M._web_grab_display();
   const px = M.HEAPU8.subarray(ptr, ptr + W * H * 4);
   const mask = new Uint8Array(W * H);
-  for (let i = 0; i < W * H; i++) mask[i] = px[i * 4] + px[i * 4 + 1] + px[i * 4 + 2] >= 14 ? 1 : 0;
+  for (let i = 0; i < W * H; i++) {
+    const x = i % W, y = (i / W) | 0;
+    if (y < 84 && x > 110 && x < 235) continue;        // HUD clock region: never part of a character
+    mask[i] = px[i * 4] + px[i * 4 + 1] + px[i * 4 + 2] >= 14 ? 1 : 0;
+  }
   const comp = new Int32Array(W * H).fill(-1), comps = [];
   for (let i = 0; i < W * H; i++) {
     if (!mask[i] || comp[i] >= 0) continue;
@@ -150,6 +154,7 @@ function grab() {
   let best = null, bd = 1e9;
   for (const c of comps) {
     if (c.n < 60 || c.y1 - c.y0 < 14) continue;
+    if (c.x1 < 150 && c.y1 < 85) continue;             // HUD clock (top-left) is not the character
     const d = ((c.x0 + c.x1) / 2 - track[0]) ** 2 + ((c.y0 + c.y1) / 2 - track[1]) ** 2;
     if (d < bd) { bd = d; best = c; }
   }
