@@ -165,6 +165,23 @@ function dumpObjects(dir) {
   return insts.length;
 }
 
+// static NPC / wild-Digimon table of the loaded map (web_map_npcs): the map file carries it, no script run needed
+function dumpNpcs(dir) {
+  const q = M._web_map_npcs() >> 2, npcs = [];
+  for (let i = 0; i < 8; i++) {
+    const o = q + i * 64, g = (k) => M.HEAP32[o + k];
+    if (g(0) < 0 || g(0) > 255) continue;
+    const nw = g(11), wp = [];
+    for (let j = 0; j < nw; j++) wp.push([g(20 + j * 3), g(21 + j * 3), g(22 + j * 3)]);
+    npcs.push({ slot: i, type: g(0), follow: g(1), x: g(2), y: g(3), z: g(4), rot: [g(5), g(6), g(7)], range: g(8), sid: g(9), bits: g(10),
+      ai: Array.from({ length: 8 }, (_, j) => g(12 + j)), wp,
+      stats: { hp: g(44), mp: g(45), off: g(46), def: g(47), speed: g(48), brain: g(49), moves: [g(50), g(51), g(52), g(53)], prio: [g(54), g(55), g(56), g(57)], charge: g(58) }, active: g(59) });
+  }
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, 'npcs.json'), JSON.stringify(npcs));
+  return npcs.length;
+}
+
 function dumpMap(m, index) {
   const P = M._web_map_info() >> 2, w = M.HEAP32[P], h = M.HEAP32[P + 1];
   if (w <= 0 || h <= 0 || w * h > 35) return false;
@@ -229,8 +246,9 @@ function dumpMap(m, index) {
     let t = 0, s;
     while (t < 9000) { await sleep(250); t += 250; s = state(); if ((s.map & 0xff) === m && t >= 1500) break; }
     if ((s.map & 0xff) !== m) { skipped.push(m); console.error(`map ${m}: did not settle (map=${s.map & 0xff})`); continue; }
-    await sleep(process.env.DEBUG_ENT ? 6000 : 600);
-    if (dumpMap(m, index)) ok.push(m); else skipped.push(m);
+    await sleep(process.env.DEBUG_ENT ? 6000 : process.env.NPCS_ONLY ? 2800 : 600);     // the map script spawns its NPCs a moment after the load
+    if (process.env.NPCS_ONLY) { const n = dumpNpcs(path.join(OUT, String(m))); ok.push(m); console.error(`map ${m}: ${n} npcs`); continue; }
+    if (dumpMap(m, index)) { dumpNpcs(path.join(OUT, String(m))); ok.push(m); } else skipped.push(m);
     if (ok.length % 5 === 0) fs.writeFileSync(idxPath, JSON.stringify(index));
     if (m % 10 === 0) console.error(`map ${m} done (${ok.length} ok, ${skipped.length} skipped)`);
   }

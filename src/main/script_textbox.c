@@ -1049,6 +1049,43 @@ void scriptShowSelection(void)
 	ACTIVE_INSTRUCTION = SCRIPT_OP_SET_SELECTION;
 }
 
+#ifdef PLATFORM_WEB
+/* Web remake: every page the script interpreter puts in a textbox is copied here so
+ * tools/node_dialogue.js can read the game's own dialogue (see dw_remake/README). */
+static uint8_t web_text_buf[6 * 80];
+static int32_t web_text_rows;
+static int32_t web_text_seq;
+
+static void web_text_capture(uint8_t *base, int32_t rows)
+{
+	int32_t i;
+
+	if (rows > 6) {
+		rows = 6;
+	}
+	for (i = 0; i < rows * TEXTBOX_LINE_SIZE; i++) {
+		web_text_buf[i] = base[i];
+	}
+	web_text_rows = rows;
+	web_text_seq++;
+}
+
+int32_t web_text_count(void)
+{
+	return web_text_seq;
+}
+
+int32_t web_text_nrows(void)
+{
+	return web_text_rows;
+}
+
+uint8_t *web_text_ptr(void)
+{
+	return web_text_buf;
+}
+#endif
+
 GARBAGE(showTextbox, 1);
 
 uint16_t showTextbox(uint8_t boxId, uint8_t speakerId)
@@ -1239,6 +1276,9 @@ top: {
 	}
 }
 done:
+#ifdef PLATFORM_WEB
+	web_text_capture(base, row + 1);
+#endif
 	entry->writeCount++;
 	ACTIVE_INSTRUCTION = SCRIPT_OP_SHOW_TEXTBOX;
 

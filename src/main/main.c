@@ -3932,6 +3932,13 @@ void recalculatePPandArena(void)
 
 void gameLoop(void)
 {
+#ifdef PLATFORM_WEB
+	{
+		extern void web_run_jobs(void);
+
+		web_run_jobs();
+	}
+#endif
 	pollInputGame();
 	ACTIVE_FRAMEBUFFER = GsGetActiveBuff();
 	GsSetWorkBase(GS_WORK_BASES[ACTIVE_FRAMEBUFFER]);

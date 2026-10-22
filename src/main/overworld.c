@@ -1921,3 +1921,222 @@ void setPartnerIdling(void)
 }
 
 void renderPlayerMenu(void);
+
+#ifdef PLATFORM_WEB
+/* Web remake export: the map's static NPC/wild-Digimon table (filled by
+ * loadMapDigimon). Returns 8 slots of 48 ints:
+ * [0]=typeId (-1 = empty) [1]=followMode [2..4]=pos xyz [5..7]=rot xyz
+ * [8]=trackingRange [9]=scriptId [10]=bits [11]=waypoint count
+ * [12..19]=aiSections [20..43]=waypoints xyz*8 [44]=hp [45]=mp [46]=off [47]=def
+ * [48]=speed [49]=brain [50..53]=moves [54..57]=move priorities [58]=chargeMode
+ * [59]=1 if the map script has spawned this slot (ENTITY_TABLE[slot + 2] live and on the map) */
+int32_t *web_map_npcs(void)
+{
+	static int32_t out[8 * 64];
+	int32_t i;
+	int32_t j;
+	int32_t n;
+
+	for (i = 0; i < 8 * 64; i++) {
+		out[i] = 0;
+	}
+	for (i = 0; i < 8; i++) {
+		int32_t *o = &out[i * 64];
+		MapDigimonEntity *m = &MAP_DIGIMON_TABLE[i];
+		Stats *st = &NPC_ENTITIES[i].digimonEntity.stats;
+
+		o[0] = m->typeId;
+		o[1] = m->followMode;
+		o[2] = m->posX;
+		o[3] = m->posY;
+		o[4] = m->posZ;
+		o[5] = m->rotX;
+		o[6] = m->rotY;
+		o[7] = m->rotZ;
+		o[8] = m->trackingRange;
+		o[9] = NPC_ENTITIES[i].scriptId;
+		o[10] = NPC_ENTITIES[i].bits;
+		o[44] = st->base.hp;
+		o[45] = st->base.mp;
+		o[46] = st->base.off;
+		o[47] = st->base.def;
+		o[48] = st->base.speed;
+		o[49] = st->base.brain;
+		for (j = 0; j < 4; j++) {
+			o[50 + j] = st->base.moves[j];
+			o[54 + j] = st->base.movesPrio[j];
+		}
+		o[58] = st->current.chargeMode;
+		o[59] = (ENTITY_TABLE[i + 2] != NULL && ENTITY_TABLE[i + 2]->isOnMap != 0) ? 1 : 0;
+		for (j = 0; j < 8; j++) {
+			o[12 + j] = m->path.aiSections[j];
+			o[20 + j * 3] = m->path.waypoints[j].vx;
+			o[21 + j * 3] = m->path.waypoints[j].vy;
+			o[22 + j * 3] = m->path.waypoints[j].vz;
+		}
+		n = 8;
+		while (n > 0 && o[20 + (n - 1) * 3] == 0 &&
+		       o[21 + (n - 1) * 3] == 0 && o[22 + (n - 1) * 3] == 0) {
+			n--;
+		}
+		o[11] = n;
+	}
+	return out;
+}
+#endif
+
+#ifdef PLATFORM_WEB
+/* Web remake sprite baker (tools/node_bake_npc.js): show one species as NPC
+ * slot 0, posed by hand, so the engine's own render can be captured.
+ * Model loading reads the disc, which only works inside the main loop (the file
+ * reads sleep via Asyncify), so the exports queue a job that gameLoop() runs. */
+static int32_t web_job_kind; /* 1 = load, 2 = unload, 3 = spawn */
+static int32_t web_job_args[4];
+static int32_t web_job_done;
+static int32_t web_job_result;
+
+void web_bake_request(int32_t kind, int32_t type, int32_t x, int32_t y, int32_t z)
+{
+	web_job_args[0] = type;
+	web_job_args[1] = x;
+	web_job_args[2] = y;
+	web_job_args[3] = z;
+	web_job_kind = kind;
+}
+
+int32_t web_bake_done(void)
+{
+	return web_job_done;
+}
+
+int32_t web_bake_result(void)
+{
+	return web_job_result;
+}
+
+void web_run_jobs(void)
+{
+	MapDigimonEntity *m;
+	int32_t j;
+	int32_t kind = web_job_kind;
+
+	if (kind == 0) {
+		return;
+	}
+	web_job_kind = 0;
+	web_job_result = 0;
+	switch (kind) {
+	case 1:
+		loadNPCModel((uint8_t)web_job_args[0]);
+		web_job_result = 1;
+		break;
+	case 2:
+		if (ENTITY_TABLE[2] != NULL) {
+			ENTITY_TABLE[2]->isOnMap = 0;
+			removeEntity(ENTITY_TABLE[2]->type, 2);
+			ENTITY_TABLE[2] = NULL;
+		}
+		unloadDigimonModel((uint8_t)web_job_args[0]);
+		web_job_result = 1;
+		break;
+	case 3:
+		m = &MAP_DIGIMON_TABLE[0];
+		m->typeId = web_job_args[0];
+		m->posX = web_job_args[1];
+		m->posY = web_job_args[2];
+		m->posZ = web_job_args[3];
+		m->rotX = m->rotY = m->rotZ = 0;
+		m->animation = 0;
+		m->followMode = 0;
+		m->trackingRange = 0;
+		m->stopAnim = 1;
+		for (j = 0; j < 8; j++) {
+			m->path.aiSections[j] = -1;
+			m->path.waypoints[j].vx = 0;
+			m->path.waypoints[j].vy = 0;
+			m->path.waypoints[j].vz = 0;
+		}
+		m->path.activeSection = 0;
+		web_job_result = scriptSetDigimon((uint8_t)web_job_args[0], 0, 0);
+		break;
+	case 4:
+		if (IS_SCRIPT_PAUSED != 1) {
+			break;
+		}
+		if (web_job_args[1] >= 0) {
+			TALKED_TO_ENTITY = web_job_args[1] + 2;
+		}
+		removeTriangleMenu();
+		closeInventoryBoxes();
+		removeUIBox1();
+		callScriptSection(CURRENT_SCRIPT_ID, web_job_args[0], 1);
+		web_job_result = 1;
+		break;
+	}
+	web_job_done++;
+}
+
+void web_bake_pose(int32_t rotY, int32_t anim)
+{
+	if (ENTITY_TABLE[2] == NULL) {
+		return;
+	}
+	setEntityPosition(2, MAP_DIGIMON_TABLE[0].posX, MAP_DIGIMON_TABLE[0].posY,
+	                  MAP_DIGIMON_TABLE[0].posZ);
+	setEntityRotation(2, 0, rotY, 0);
+	setupEntityMatrix(2);
+	if (ENTITY_TABLE[2]->anim.animId != anim) {
+		startAnimation(ENTITY_TABLE[2], (uint8_t)anim);
+	}
+}
+#endif
+
+#ifdef PLATFORM_WEB
+/* Web remake dialogue extraction: queue "start the map script section `sid` as
+ * if the tamer had talked to NPC slot `slot`" (-1 = no NPC, e.g. a tile
+ * trigger); gameLoop() runs it (web_run_jobs, kind 4). web_bake_result() is 0
+ * if the script engine was busy. */
+void web_call_script(int32_t sid, int32_t slot)
+{
+	web_bake_request(4, sid, slot, 0, 0);
+}
+
+int32_t web_script_idle(void)
+{
+	return IS_SCRIPT_PAUSED;
+}
+#endif
+
+#ifdef PLATFORM_WEB
+/* Web remake debugging: NPC slot 0's entity state.
+ * [0]=present [1]=type [2..4]=location xyz [5]=rotY [6]=isOnScreen [7]=isOnMap [8]=animId
+ * [9]=animFrame [10]=frameCount [11]=loopEndFrame [12]=loopCount [13]=animFlag */
+int32_t *web_npc_probe(void)
+{
+	static int32_t out[14];
+	Entity *e = ENTITY_TABLE[2];
+	int32_t i;
+
+	for (i = 0; i < 14; i++) {
+		out[i] = 0;
+	}
+	if (e == NULL) {
+		return out;
+	}
+	out[0] = 1;
+	out[1] = e->type;
+	out[2] = e->posData->location.vx;
+	out[3] = e->posData->location.vy;
+	out[4] = e->posData->location.vz;
+	out[5] = e->posData->rotation.vy;
+	out[6] = e->isOnScreen;
+	out[7] = e->isOnMap;
+	out[8] = e->anim.animId;
+	out[9] = e->anim.animFrame;
+	out[10] = e->anim.frameCount;
+	out[11] = e->anim.loopEndFrame;
+	out[12] = e->anim.loopCount;
+	out[13] = e->anim.animFlag;
+	return out;
+}
+#endif
