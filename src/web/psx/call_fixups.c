@@ -746,3 +746,11 @@ int32_t *web_ent_info(int32_t i)
 	out[8] = i >= 2 ? (int32_t)(uint8_t)e[102] : -1;
 	return out;
 }
+
+/* map id -> BGM track id (tools/node_bgm.js groups maps by track) */
+int32_t web_map_sound_id(int32_t m)
+{
+	extern int32_t getMapSoundId(int16_t mapId);
+
+	return getMapSoundId((int16_t)m);
+}
