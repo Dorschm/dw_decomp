@@ -181,11 +181,17 @@ function dumpMap(m, index) {
   fs.writeFileSync(path.join(dir, 'coll.bin'), M.HEAPU8.slice(cp, cp + 10000));
   const cm = M._web_map_camera() >> 2, cam = [M.HEAP32[cm], M.HEAP32[cm + 1]];
   const pts = [];
-  for (let z = -2000; z <= 2000; z += 1000) for (let x = -2000; x <= 2000; x += 1000) {
+  // GTE clamps projected coordinates to about +-1024, so keep only unclamped samples
+  // (zoomed-in maps overflow quickly); a 9x9 grid leaves plenty for the fit
+  for (let z = -2400; z <= 2400; z += 600) for (let x = -2400; x <= 2400; x += 600) {
     const q = M._web_net_project(x, 0, z) >> 1;
-    const px = M.HEAP16[q] + 160 + cam[0], py = M.HEAP16[q + 1] + 120 + cam[1];
+    const sx = M.HEAP16[q], sy = M.HEAP16[q + 1];
+    if (Math.abs(sx) > 1000 || Math.abs(sy) > 1000) continue;
+    const px = sx + 160 + cam[0], py = sy + 120 + cam[1];
     M._web_net_project(x, -167, z);          // characters sort by their origin height
-    pts.push([x, z, px, py, M._web_net_depth()]);
+    const d = M._web_net_depth();
+    if (d < 1 || d > 4095) continue;
+    pts.push([x, z, px, py, d]);
   }
   const q0 = M._web_net_project(0, 0, 0) >> 1, a0 = [M.HEAP16[q0], M.HEAP16[q0 + 1]];
   const q1 = M._web_net_project(0, -167, 0) >> 1;
@@ -211,11 +217,12 @@ function dumpMap(m, index) {
   let index = { maps: {} };
   try { index = JSON.parse(fs.readFileSync(idxPath, 'utf8')); } catch (e) {}
   console.error('booting (about 2-3 minutes)...');
-  const s0 = await boot(Math.max(from, 1) === 50 ? 51 : Math.max(from, 1));
+  const s0 = await boot(process.env.MAPS ? Number(process.env.MAPS.split(',')[0]) : Math.max(from, 1) === 50 ? 51 : Math.max(from, 1));
   console.error('boot done:', JSON.stringify(s0));
   if (s0.tamer !== 0 || s0.map < 1) { console.error('boot did not reach free roam; exiting 3 (retry)'); process.exit(3); }
   const ok = [], skipped = [];
-  for (let m = from; m <= to; m++) {
+  const list = process.env.MAPS ? process.env.MAPS.split(',').map(Number) : Array.from({ length: to - from + 1 }, (_, i) => from + i);
+  for (const m of list) {
     if (NO_FILES.includes(m)) continue;
     M._web_debug_warp(m, 0, 1);
     let t = 0, s;
