@@ -2897,6 +2897,15 @@ void renderDigimon(instanceId)
 	}
 	pos = ENTITY_TABLE[instanceId]->posData;
 	boneCount = DIGIMON_DATA[ENTITY_TABLE[instanceId]->type].boneCount;
+#ifdef PLATFORM_WEB
+	{
+		extern int web_hide_entities;
+
+		if (web_hide_entities & (1 << instanceId)) {
+			boneCount = 0;
+		}
+	}
+#endif
 	for (i = 0; i < boneCount; pos++, i++) {
 		if (pos->obj.tmd == NULL) {
 			continue;

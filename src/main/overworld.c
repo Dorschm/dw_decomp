@@ -474,6 +474,15 @@ void renderMapOverlays(LocalMapObjectInstance *instances, int16_t screenX,
 	int32_t i;
 	int16_t startFrame;
 
+#ifdef PLATFORM_WEB
+	{
+		extern int web_hide_map;
+
+		if (web_hide_map) {
+			return;
+		}
+	}
+#endif
 	if (!MAP_LAYER_ENABLED) {
 		return;
 	}

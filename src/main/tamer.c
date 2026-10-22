@@ -1854,4 +1854,24 @@ void web_debug_tp(int idx)
 	TAMER_ENTITY.entity.anim.locX = e->anim.locX;
 	TAMER_ENTITY.entity.anim.locZ = e->anim.locZ;
 }
+
+/* tools/node_bake.js: the tamer's world location (vx, vy, vz) */
+int32_t *web_tamer_loc(void)
+{
+	static int32_t out[3];
+
+	out[0] = TAMER_ENTITY.entity.posData->location.vx;
+	out[1] = TAMER_ENTITY.entity.posData->location.vy;
+	out[2] = TAMER_ENTITY.entity.posData->location.vz;
+	return out;
+}
+
+/* tools/node_bake.js: put the tamer at an absolute world position */
+void web_debug_tamer_pos(int x, int z)
+{
+	TAMER_ENTITY.entity.posData->location.vx = x;
+	TAMER_ENTITY.entity.posData->location.vz = z;
+	TAMER_ENTITY.entity.anim.locX = x;
+	TAMER_ENTITY.entity.anim.locZ = z;
+}
 #endif

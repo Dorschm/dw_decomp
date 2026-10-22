@@ -4132,7 +4132,13 @@ void renderMap(int32_t arg0)
 	ot = ACTIVE_ORDERING_TABLE->org;
 
 #ifdef PLATFORM_WEB
-	webRenderAllMapTiles(ot);
+	{
+		extern int web_hide_map;
+
+		if (!web_hide_map) {
+			webRenderAllMapTiles(ot);
+		}
+	}
 	row = 3; /* skip the retail 4x3 tile-window loop below */
 #else
 	row = 0;

@@ -307,6 +307,40 @@ void web_gpu_stats(void)
 	gpu_stats_dump();
 }
 
+/* sprite baking (tools/node_bake.js): hide the map background + overlay layers so only
+ * entities draw on black, and read the display buffer back as RGBA */
+int web_hide_map;
+int web_hide_entities;	/* bit i = skip drawing ENTITY_TABLE[i] (sprite baking) */
+
+EMSCRIPTEN_KEEPALIVE
+uint8_t *web_grab_display(void)
+{
+	static uint8_t *buf;
+
+	if (buf == NULL)
+		buf = malloc(1024 * 512 * 4);
+	gpu_present_rgba(buf, &gpu_dispenv);
+	return buf;
+}
+
+EMSCRIPTEN_KEEPALIVE
+int web_grab_w(void)
+{
+	return gpu_dispenv.w ? gpu_dispenv.w : 320;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void web_set_hide_entities(int v)
+{
+	web_hide_entities = v;
+}
+
+EMSCRIPTEN_KEEPALIVE
+void web_set_hide_map(int v)
+{
+	web_hide_map = v;
+}
+
 int main(void)
 {
 	uintptr_t brk = (uintptr_t)sbrk(0);
