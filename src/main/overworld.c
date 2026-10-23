@@ -2059,6 +2059,20 @@ void web_run_jobs(void)
 		m->path.activeSection = 0;
 		web_job_result = scriptSetDigimon((uint8_t)web_job_args[0], 0, 0);
 		break;
+	case 5: {
+		extern uint32_t playSound(int32_t vabId, int32_t val);       /* the real prototype: a mismatch makes wasm-ld stub the call with a trap */
+
+		playSound(web_job_args[0], web_job_args[1]);
+		web_job_result = 1;
+		break;
+	}
+	case 6: {
+		extern void stopBGM(void);
+
+		stopBGM();
+		web_job_result = 1;
+		break;
+	}
 	case 4:
 		if (IS_SCRIPT_PAUSED != 1) {
 			break;
