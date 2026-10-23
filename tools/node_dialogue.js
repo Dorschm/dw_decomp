@@ -127,7 +127,7 @@ if (require.main === module) (async () => {
     let skip = [], out = {};
     try { skip = JSON.parse(fs.readFileSync(skipF, 'utf8')); } catch (e) { /* none */ }
     try { out = JSON.parse(fs.readFileSync(partF, 'utf8')); } catch (e) { /* none */ }
-    if (fs.existsSync(curF)) { skip.push(+fs.readFileSync(curF, 'utf8')); fs.writeFileSync(skipF, JSON.stringify(skip)); fs.unlinkSync(curF); }
+    if (fs.existsSync(curF)) { skip.push(+fs.readFileSync(curF, 'utf8')); fs.writeFileSync(skipF, JSON.stringify(skip)); try { fs.unlinkSync(curF); } catch (e) { /* another worker got there first */ }; }
     console.error(`map ${m}: ${secs.size} sections`);
     if (!(await settleOn(m))) { console.error(`map ${m}: did not settle`); continue; }
     for (const [sid, slot] of secs) {
@@ -147,11 +147,11 @@ if (require.main === module) (async () => {
       if (pages && pages.stuck) {                                       // the fight never ended: record it and restart clean
         fs.writeFileSync(path.join(dir, 'dialogue.json'), JSON.stringify(out));
         console.error(`map ${m}: section ${sid} starts a battle that did not end; restarting`);
-        fs.unlinkSync(curF); process.exit(4);
+        try { fs.unlinkSync(curF); } catch (e) { /* another worker got there first */ }; process.exit(4);
       }
       // leave any menu/script behind before the next one
       for (let k = 0; k < 12 && M._web_script_idle() !== 1; k++) await tap(PAD.cross, 70, 600);   // let the script finish before the next one
-      if (state().game === 0) fs.unlinkSync(curF);                     // finished cleanly; otherwise the next run skips it
+      if (state().game === 0) try { fs.unlinkSync(curF); } catch (e) { /* another worker got there first */ };                     // finished cleanly; otherwise the next run skips it
     }
     if (Object.keys(out).length) fs.writeFileSync(path.join(dir, 'dialogue.json'), JSON.stringify(out));
     fs.writeFileSync(path.join(dir, 'dialogue.done'), '1');
