@@ -65,6 +65,7 @@ async function runSection(sid, slot) {
   if ((await job(4, sid, slot)) !== 1) return null;
   const pages = [];
   let battle = false;
+  const b0 = M._web_battles_count();
   const hardStop = Date.now() + 120000;
   let seen = seq0, idleSince = 0;
   const startT = Date.now();
@@ -91,6 +92,7 @@ async function runSection(sid, slot) {
     if (pages.length > 40) break;
     if (!pages.length && !battle && Date.now() - startT > 6000) break;           // a silent script (cutscene, shop menu...)
   }
+  battle = battle || M._web_battles_count() > b0;
   return { pages, battle, stuck };
 }
 
@@ -101,6 +103,7 @@ if (require.main === module) (async () => {
   const s0 = await boot(1);
   console.error('boot done:', JSON.stringify(s0));
   if (s0.tamer !== 0 || s0.map < 1) { console.error('boot did not reach free roam; exiting 3 (retry)'); process.exit(3); }
+  M._web_set_skip_battles(1);                                  // scripts that start a fight carry on as if it was won (and are flagged)
   M._web_set_speed(+(process.env.SPEED || 4));                 // the game counts frames: run it faster than real time after the boot macro
   const list = process.env.MAPS ? process.env.MAPS.split(',').map(Number) : Array.from({ length: to - from + 1 }, (_, i) => from + i);
   if (process.env.REVERSE) list.reverse();
@@ -145,7 +148,7 @@ if (require.main === module) (async () => {
         fs.unlinkSync(curF); process.exit(4);
       }
       // leave any menu/script behind before the next one
-      for (let k = 0; k < 40 && M._web_script_idle() !== 1; k++) await tap(PAD.cross, 70, 200);   // let the script finish before the next one
+      for (let k = 0; k < 12 && M._web_script_idle() !== 1; k++) await tap(PAD.cross, 70, 600);   // let the script finish before the next one
       if (state().game === 0) fs.unlinkSync(curF);                     // finished cleanly; otherwise the next run skips it
     }
     if (Object.keys(out).length) fs.writeFileSync(path.join(dir, 'dialogue.json'), JSON.stringify(out));

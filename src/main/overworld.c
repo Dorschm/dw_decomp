@@ -2140,3 +2140,18 @@ int32_t *web_npc_probe(void)
 	return out;
 }
 #endif
+
+#ifdef PLATFORM_WEB
+int web_skip_battles;
+int web_battles_requested;
+
+void web_set_skip_battles(int v)
+{
+	web_skip_battles = v;
+}
+
+int web_battles_count(void)
+{
+	return web_battles_requested;
+}
+#endif

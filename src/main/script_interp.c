@@ -1914,7 +1914,17 @@ void scriptInstruction64to7E(op)
 		{
 			int16_t outcome;
 
+#ifdef PLATFORM_WEB
+			{
+				/* dialogue extraction (tools/node_dialogue.js) counts the fight and lets the script carry on as if it was won */
+				extern int web_skip_battles, web_battles_requested;
+
+				web_battles_requested++;
+				outcome = web_skip_battles ? 1 : startBattle(MAIN_D_80134F9C);
+			}
+#else
 			outcome = startBattle(MAIN_D_80134F9C);
+#endif
 			writePStat(0xff, outcome);
 			if (outcome == -1) {
 				handleItemLoss();
