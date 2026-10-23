@@ -5817,3 +5817,16 @@ int32_t getFileCityTopMap(void)
 
 	return 0xa8;
 }
+
+#ifdef PLATFORM_WEB
+/* Web remake: load the day (0) / dusk (1) / night (2) palette of the current map into VRAM, as updateTimeOfDay does,
+ * so the extractor can decode the three looks. Returns 0 for maps without a time of day (flag 0x40: interiors). */
+int web_set_map_clut(int n)
+{
+	if ((MAP_ENTRIES[CURRENT_SCREEN].flags & 0x40) != 0 || n < 0 || n > 2 || MAP_CLUTS[n] == NULL) {
+		return 0;
+	}
+	LoadClut(MAP_CLUTS[n], 0, 480);
+	return 1;
+}
+#endif
