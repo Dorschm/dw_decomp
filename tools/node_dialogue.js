@@ -66,12 +66,14 @@ async function runSection(sid, slot) {
   const pages = [];
   let battle = false;
   const b0 = M._web_battles_count();
+  let at;
   const hardStop = Date.now() + 120000;
   let seen = seq0, idleSince = 0;
   const startT = Date.now();
   let deadline = Date.now() + 14000, stuck = false;
   while (Date.now() < deadline) {
     await sleep(120);
+    if (at === undefined && M._web_battles_count() > b0) at = pages.length;      // pages before this index are shown before the fight
     const c = M._web_text_count();
     if (c !== seen) {
       seen = c;
@@ -93,7 +95,7 @@ async function runSection(sid, slot) {
     if (!pages.length && !battle && Date.now() - startT > 6000) break;           // a silent script (cutscene, shop menu...)
   }
   battle = battle || M._web_battles_count() > b0;
-  return { pages, battle, stuck };
+  return { pages, battle, at: battle ? (at ?? pages.length) : undefined, stuck };
 }
 
 module.exports = { runSection, settleOn, decodePage };
