@@ -11,3 +11,4 @@ objdiff.json
 .tmp_test/
 web/dw.js
 web/dw.wasm
+web/data/

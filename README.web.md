@@ -32,10 +32,18 @@ sha1sum build/us/psx/gcc/SLUS_010.32 build/us/psx/gcc/*_REL.BIN
 ## Run
 
 ```sh
+# once: turn your disc into the data pack the page boots from (~200 MB,
+# gzip chunks fetched on demand; gitignored -- it is your disc's data)
+python tools/make_datapack.py "path/to/Digimon World.bin" web/data
+
 cd web
 python -m http.server 8765
-# open http://localhost:8765, click "Select .bin", pick Digimon World (USA).bin
+# open http://localhost:8765 -- the game starts with no .bin needed
 ```
+
+When `web/data/manifest.json` exists the page boots from it straight
+away. Without a pack (or with `?nopack`) it falls back to
+"Select .bin"; `?disc=<url>` still loads a whole image.
 
 Keyboard: arrows = d-pad, X = Cross, Z = Square, S = Triangle,
 A = Circle, Q/W = L1/R1, E/R = L2/R2, Enter = Start, Right Shift =

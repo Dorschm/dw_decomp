@@ -256,7 +256,67 @@ document.getElementById('disc').addEventListener('change', function (e) {
   });
 });
 
+/* ---- data pack (tools/make_datapack.py) ----------------------------
+ * data/manifest.json + gzip chunks of `chunk` sectors, each sector its
+ * bytes 16..2348. Chunks are fetched on demand and kept in a small LRU,
+ * so no disc image is needed at all. readRaw rebuilds sync + MODE2
+ * header; EDC/ECC stay zero (nothing reads them). */
+function packSource(base, man) {
+  var REC = man.record, CH = man.chunk, KEEP = 64;
+  var empty = {}, cache = new Map();
+  man.empty.forEach(function (c) { empty[c] = 1; });
+  function chunk(c) {
+    var p = cache.get(c);
+    if (p) { cache.delete(c); cache.set(c, p); return p; }
+    p = empty[c] ? Promise.resolve(new Uint8Array(REC * CH))
+      : fetch(base + ('000' + c).slice(-4) + '.gz').then(function (r) {
+          if (!r.ok) throw new Error('data chunk ' + c + ': HTTP ' + r.status);
+          return new Response(r.body.pipeThrough(
+            new DecompressionStream('gzip'))).arrayBuffer();
+        }).then(function (b) { return new Uint8Array(b); });
+    p.catch(function () { cache.delete(c); });
+    cache.set(c, p);
+    if (cache.size > KEEP) cache.delete(cache.keys().next().value);
+    return p;
+  }
+  function bcd(v) { return ((v / 10) | 0) * 16 + v % 10; }
+  return {
+    readRaw: function (off, len) {
+      var lba = off / 2352, n = len / 2352, out = new Uint8Array(len);
+      var c0 = Math.floor(lba / CH), c1 = Math.floor((lba + n - 1) / CH);
+      var jobs = [];
+      for (var c = c0; c <= c1; ++c) jobs.push(chunk(c));
+      return Promise.all(jobs).then(function (bufs) {
+        for (var i = 0; i < n; ++i) {
+          var s = lba + i, a = s + 150, b = i * 2352;
+          if (s >= man.sectors) break;
+          var buf = bufs[Math.floor(s / CH) - c0], r = (s % CH) * REC;
+          out.fill(0xff, b + 1, b + 11);
+          out[b + 12] = bcd((a / 4500) | 0);
+          out[b + 13] = bcd(((a / 75) | 0) % 60);
+          out[b + 14] = bcd(a % 75);
+          out[b + 15] = 2;
+          out.set(buf.subarray(r, r + REC), b + 16);
+        }
+        return out;
+      });
+    },
+  };
+}
+
 var m = location.search.match(/[?&]disc=([^&]+)/);
+if (!m && !/[?&]nopack\b/.test(location.search)) {
+  fetch('data/manifest.json').then(function (r) {
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    return r.json();
+  }).then(function (man) {
+    if (discSource) return;
+    statusEl.textContent = 'game data: ' + man.sectors + ' sectors\n';
+    document.querySelector('.sub').textContent =
+      'PlayStation port running natively in your browser.';
+    attachSource(packSource('data/', man));
+  }).catch(function () { /* no pack: fall back to Select .bin */ });
+}
 if (m) {
   statusEl.textContent = 'fetching disc ' + decodeURIComponent(m[1]) + ' …\n';
   fetch(decodeURIComponent(m[1])).then(function (r) {
